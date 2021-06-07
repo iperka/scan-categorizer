@@ -81,7 +81,7 @@ Be sure to configure the script accordingly before using it.
 
 - Scan a document with your scanner or favorite scanner app. (SwiftScan is recommend)
 - Upload your PDF document to Google Drive into the defined Scanner folder.
-- Manually or automaticity trigger script and all the documents will get categorized and organized.
+- Manually or automatically trigger script and all the documents will get categorized and organized.
 
 ## Authors 👨‍💻
 
