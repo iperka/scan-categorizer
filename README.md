@@ -10,7 +10,7 @@ The script uses OCR to check if one or more of the given keywords are included i
 - [Scan Categorizer 🏸](#scan-categorizer-)
   - [Table of Contents 🧾](#table-of-contents-)
   - [Current Workflow ⏳](#current-workflow-)
-  - [Workflow with Scan Organizer 🎉](#workflow-with-scan-organizer-)
+  - [Workflow with Scan Categorizer 🎉](#workflow-with-scan-categorizer-)
   - [Installation 🎈](#installation-)
   - [Configuration ⚙](#configuration-)
     - [SCAN_FOLDER_ID](#scan_folder_id)
@@ -43,7 +43,7 @@ while (true) {
 }
 ```
 
-## Workflow with Scan Organizer 🎉
+## Workflow with Scan Categorizer 🎉
 
 With the use of this script you can save a significant amount of time navigating throw your folders and analizing PDF's. Just scan and forget!
 
