@@ -3,10 +3,14 @@
 Google Script for better scan workflow. This script allows you to categorize scanned documents with predefined categories and organize your Drive.
 The script uses OCR to check if one or more of the given keywords are included in the document and if only one category is matched it will organize according to configuration.
 
+**Scan and forget!**
+
 ## Table of Contents 🧾
 
 - [Scan Categorizer 🏸](#scan-categorizer-)
   - [Table of Contents 🧾](#table-of-contents-)
+  - [Current Workflow ⏳](#current-workflow-)
+  - [Workflow with Scan Organizer 🎉](#workflow-with-scan-organizer-)
   - [Installation 🎈](#installation-)
   - [Configuration ⚙](#configuration-)
     - [SCAN_FOLDER_ID](#scan_folder_id)
@@ -16,6 +20,36 @@ The script uses OCR to check if one or more of the given keywords are included i
   - [Authors 👨‍💻](#authors-)
   - [License 📃](#license-)
   - [Contributing 🤝](#contributing-)
+
+## Current Workflow ⏳
+
+![Current Workflow](https://github.com/iperka/scan-categorizer/blob/main/current-flow.png "Current Workflow")
+
+- Scan your document with any scanner.
+- Upload into Google Drive folder.
+- Check files if multiple scanns made at once.
+- Organize documents and navigate throw whole Google Drive.
+- Handle the next document.
+
+```javascript
+while (true) {
+  scanDocument();
+  uploadDocument();
+  if (isMultiScan) {
+    checkDocuments();
+    derterminateCategoryAndLocation();
+  }
+  organizeDocuments();
+}
+```
+
+## Workflow with Scan Organizer 🎉
+
+With the use of this script you can save a significant amount of time navigating throw your folders and analizing PDF's. Just scan and forget!
+
+- Scan your document with any scanner.
+- Upload into Google Drive folder. (SwiftScan can automatically upload into folder!)
+- Done! The Script will handle the rest for you.
 
 ## Installation 🎈
 
