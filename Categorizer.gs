@@ -180,7 +180,7 @@ function getTextFromPDF(fileID) {
 function getCategory(text) {
   const matchedCategories = [];
   const matchedWords = [];
-  const words = text.split(" ");
+  const words = text.split(' ').map(w => w.trim());
   Logger.log(`Found ${words.length} words inside text.`);
 
   CATEGORIES.forEach((category) => {
