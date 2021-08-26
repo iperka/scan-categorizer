@@ -5,7 +5,7 @@
  * analyize the contents and move file into specific folder by
  * category.
  *
- * @version 1.6.2
+ * @version 1.7.1
  * @author Michael Beutler
  */
 
@@ -29,7 +29,7 @@ const REPORT_EMAIL = "you@example.com";
  * $h => hour
  * $i => minutes
  * $s => seconds
- * $S => school semester
+ * $S => semester (schoolStart must be defined)
  *
  * Advanced:
  * Add a custom rename function to rename file based on contents.
@@ -60,6 +60,7 @@ const CATEGORIES = [
     name: "Foo",
     keywords: ["Foo", "Bar"], // Case sensitive and has to match whole word
     path: "Foo/Bar/$y/$m",
+    shortcuts: ["Foo/Bar/FooFoo/$y"],
   },
   {
     name: "Mathematics",
@@ -106,17 +107,27 @@ function getPDFs() {
     const matches = getCategory(doc.text);
 
     if (matches[0].length > 1 || matches[0].length < 1) {
-      Logger.log(`Unable to determinate categry. (${matches[0].length})`);
+      Logger.log(
+        `Unable to determinate category. (${matches
+          .map((m) => JSON.stringify(m))
+          .join(", ")})`
+      );
       GmailApp.sendEmail(
         REPORT_EMAIL,
         `Document inside '${folder.getName()}' can't be categorized.`,
         `
         The document '${file.getName()}' couldn't be categorized by script.\n
         If you encounter this problem more than once you should adjust the CATEGORIES inside the script to match your document.\n
-        Matched Categories: ${matches[0].map((m) => m.name).join(", ")}\n
-        Matched Keywords: ${matches[1]
-          .map((m) => `${m.category} => ${m.keyword}`)
-          .join(", ")}\n
+        Matched Categories: ${
+          matches[0].length === 0
+            ? "none"
+            : matches[0].map((m) => m.name).join(", ")
+        }\n
+        Matched Keywords: ${
+          matches[1].length === 0
+            ? "none"
+            : matches[1].map((m) => `${m.category} => ${m.keyword}`).join(", ")
+        }\n
         \n
         ${file.getUrl()}\n
       `,
@@ -126,12 +137,16 @@ function getPDFs() {
         The document '${file.getName()}' couldn't be categorized by script.<br />
         If you encounter this problem more than once you should adjust the CATEGORIES to match your document.<br />
         <br />
-        <strong>Matched Categories: </strong> ${matches[0]
-          .map((m) => m.name)
-          .join(", ")}<br />
-        <strong>Matched Keywords: </strong> ${matches[1]
-          .map((m) => `${m.category} => ${m.keyword}`)
-          .join(", ")}<br />
+        <strong>Matched Categories: </strong> ${
+          matches[0].length === 0
+            ? "none"
+            : matches[0].map((m) => m.name).join(", ")
+        }<br />
+        <strong>Matched Keywords: </strong> ${
+          matches[1].length === 0
+            ? "none"
+            : matches[1].map((m) => `${m.category} => ${m.keyword}`).join(", ")
+        }<br />
         <br />
         <a href="${file.getUrl()}">${file.getName()}</a><br />
       `,
@@ -144,7 +159,7 @@ function getPDFs() {
     const match = matches[0].pop();
     Logger.log(`Document categorized as '${match.name}'.'`);
 
-    moveFiles(file.getId(), match, doc);
+    moveFile(file.getId(), match, doc);
   }
 }
 
@@ -180,8 +195,9 @@ function getTextFromPDF(fileID) {
 function getCategory(text) {
   const matchedCategories = [];
   const matchedWords = [];
-  const words = text.split(' ').map(w => w.trim());
+  const words = text.split(" ").map((w) => w.trim());
   Logger.log(`Found ${words.length} words inside text.`);
+  Logger.log(words);
 
   CATEGORIES.forEach((category) => {
     for (let i = 0; i < category.keywords.length; i++) {
@@ -233,7 +249,7 @@ function getSchoolSemester(date, schoolStart) {
   return years * 2;
 }
 
-function moveFiles(sourceFileId, category, document) {
+function moveFile(sourceFileId, category, document) {
   const date = document.date;
   const info = {
     name: category.name,
@@ -259,8 +275,34 @@ function moveFiles(sourceFileId, category, document) {
     Logger.log(`New filename set to '${file.getName()}''.`);
   }
 
+  if (category.shortcuts && category.shortcuts.length > 0) {
+    Logger.log(`Shortcuts definition found.`);
+    for (let i = 0; i < category.shortcuts.length; i++) {
+      createShortcut(
+        sourceFileId,
+        file.getName(),
+        createFilename(category.shortcuts[i], info)
+      );
+    }
+  }
+
   const folder = getOrMakeFolder(path);
   file.moveTo(folder);
+}
+
+function createShortcut(targetId, name, path) {
+  const resource = {
+    shortcutDetails: { targetId: targetId },
+    title: name,
+    mimeType: "application/vnd.google-apps.shortcut",
+  };
+
+  const folder = getOrMakeFolder(path);
+  if (folder) resource.parents = [{ id: folder.getId() }];
+  const shortcut = Drive.Files.insert(resource);
+
+  Logger.log(`Created shourtcut in '${path}'.`);
+  return shortcut.id;
 }
 
 function getOrMakeFolder(path) {

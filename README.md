@@ -83,12 +83,19 @@ const REPORT_EMAIL = "your-email@example.com";
 
 This option defines the categories. Every PDF document that includes one or more of the defined `keywords` will be matched and will apply the category. The `rename` property is optional and can be used to rename the name of the document as required. The extension must be included and must always return a filename or throw an `Error`.
 
+**NEW FEATURE - SHORTCUTS**
+
+Since the version `1.7.1` you are able to define shortcut paths. This works like the category `path` property but has to be inside an `array`. Every path defined inside the shortcuts `array` will create a link to the file. (You can use the same variables as in the `path` property.)
+
+Potential use case: Taxes require some documents like salary statements. You can categorize them as salary statements and keep track of them in their own folder but create a link inside your taxes folder.
+
 ```js
 const CATEGORIES = [
   {
     name: "Foo Bar",
     keywords: ["foo", "bar"],
     path: "Foo/Bar/$y/$m",
+    shortcuts: ["Bar/Foo/$y-$m"], // NEW
     rename: function (document) {
       // File ID
       Logger.log(document.id);
