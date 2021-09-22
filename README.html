@@ -107,6 +107,8 @@ The script uses OCR to check if one or more of the given keywords are included i
 <p><strong>NEW FEATURE - SHORTCUTS</strong></p>
 <p>Since the version <code>1.7.1</code> you are able to define shortcut paths. This works like the category <code>path</code> property but has to be inside an <code>array</code>. Every path defined inside the shortcuts <code>array</code> will create a link to the file. (You can use the same variables as in the <code>path</code> property.)</p>
 <p>Potential use case: Taxes require some documents like salary statements. You can categorize them as salary statements and keep track of them in their own folder but create a link inside your taxes folder.</p>
+<p>Since version <code>1.8.1</code> you can also create a new shortcut from your custom rename function.
+See example below:</p>
 <pre><code class="language-js"><div><span class="hljs-keyword">const</span> CATEGORIES = [
   {
     <span class="hljs-attr">name</span>: <span class="hljs-string">&quot;Foo Bar&quot;</span>,
@@ -125,6 +127,9 @@ The script uses OCR to check if one or more of the given keywords are included i
 
       <span class="hljs-comment">// Creation date</span>
       Logger.log(<span class="hljs-built_in">document</span>.date);
+
+      <span class="hljs-comment">// NEW: Create a shortcut from rename function</span>
+      <span class="hljs-built_in">document</span>.addShortcut(<span class="hljs-string">&quot;MY SHORTCUT NAME&quot;</span>, <span class="hljs-string">&quot;Foo/Bar/$y/$m/$d/$S/&quot;</span>);
 
       <span class="hljs-comment">// Return new filename</span>
       <span class="hljs-keyword">return</span> <span class="hljs-string">&quot;new filename&quot;</span>;

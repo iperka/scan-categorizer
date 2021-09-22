@@ -5,7 +5,7 @@
  * analyize the contents and move file into specific folder by
  * category.
  *
- * @version 1.7.1
+ * @version 1.8.1
  * @author Michael Beutler
  */
 
@@ -24,6 +24,7 @@ const REPORT_EMAIL = "you@example.com";
  * Combine path with path variables like year, month and day.
  *
  * $y => year
+ * $l => year - 1
  * $m => month
  * $d => date
  * $h => hour
@@ -77,6 +78,10 @@ const CATEGORIES = [
       if (document.text.includes("dog")) {
         return "doge_the_dog.pdf";
       }
+
+      // You can also create a custom shortcut
+      document.addShortcut("My Shortcut", "Doge/$y");
+
       return "doge_the_animal.pdf";
     },
   },
@@ -108,7 +113,7 @@ function getPDFs() {
 
     if (matches[0].length > 1 || matches[0].length < 1) {
       Logger.log(
-        `Unable to determinate category. (${matches
+        `Unable to determinate categry. (${matches
           .map((m) => JSON.stringify(m))
           .join(", ")})`
       );
@@ -254,6 +259,7 @@ function moveFile(sourceFileId, category, document) {
   const info = {
     name: category.name,
     y: ("0000" + date.getFullYear()).slice(-4),
+    l: ("0000" + (date.getFullYear() - 1)).slice(-4),
     m: ("00" + (date.getMonth() + 1)).slice(-2),
     d: ("00" + date.getDate()).slice(-2),
     h: ("00" + date.getHours()).slice(-2),
@@ -271,8 +277,19 @@ function moveFile(sourceFileId, category, document) {
   // Check if custom name function given
   if (category.rename) {
     Logger.log(`Custom rename function for category '${category.name}' found.`);
-    file.setName(category.rename(document));
-    Logger.log(`New filename set to '${file.getName()}''.`);
+    document.addShortcut = function (name, path) {
+      createShortcut(sourceFileId, name, createFilename(path, info));
+    };
+
+    try {
+      const newName = category.rename(document);
+      file.setName(newName);
+
+      Logger.log(`New filename set to '${file.getName()}''.`);
+    } catch (error) {
+      console.warn(`Error while evaluation new name...`);
+      return;
+    }
   }
 
   if (category.shortcuts && category.shortcuts.length > 0) {

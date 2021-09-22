@@ -89,6 +89,10 @@ Since the version `1.7.1` you are able to define shortcut paths. This works like
 
 Potential use case: Taxes require some documents like salary statements. You can categorize them as salary statements and keep track of them in their own folder but create a link inside your taxes folder.
 
+Since version `1.8.1` you can also create a new shortcut from your custom rename function.
+See example below:
+
+
 ```js
 const CATEGORIES = [
   {
@@ -108,6 +112,9 @@ const CATEGORIES = [
 
       // Creation date
       Logger.log(document.date);
+
+      // NEW: Create a shortcut from rename function
+      document.addShortcut("MY SHORTCUT NAME", "Foo/Bar/$y/$m/$d/$S/");
 
       // Return new filename
       return "new filename";
