@@ -89,7 +89,7 @@ namespace ScanCategorizer {
         const rename =
           typeof category.rename === 'string'
             ? category.rename
-            : category.rename({} as any);
+            : category.rename({getName: () => 'TEMP'} as any);
 
         // Check if rename is valid.
         if (!/\.pdf$/.test(rename)) {
