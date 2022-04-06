@@ -50,11 +50,20 @@ export namespace Helpers {
       return b.length - a.length;
     });
 
-    for (let i = 0; i < keys.length; i++) {
-      value = value.replace(new RegExp('\\$' + keys[i], 'g'), info[keys[i]]);
+    for (const element of keys) {
+      value = value.replace(new RegExp('\\$' + element, 'g'), info[element]);
     }
     return value;
   };
+
+  /**
+   * Checks if given value is a string.
+   *
+   * @author Michael Beutler
+   * @param {any} value Value to check if it is a string.
+   * @return {boolean} True if value is a string, false otherwise.
+   */
+  export const isString = (value: any): boolean => typeof value === 'string';
 
   /**
    * Extracts text content from a PDF file by using Google Docs APIs.
@@ -140,7 +149,7 @@ export namespace Helpers {
     if (folder) resource.parents = [{id: folder.getId()}];
     const shortcut = Drive.Files.insert(resource);
 
-    Logger.log(`Created shourtcut in '${path}'.`);
+    Logger.log(`Created shortcut in '${path}'.`);
     return shortcut.id;
   };
 

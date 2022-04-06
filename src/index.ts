@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import {Helpers} from './helpers';
 import {Query} from './query';
 
@@ -66,9 +67,7 @@ namespace ScanCategorizer {
     // Validate the libraries that are used in the script.
     Helpers.validateLibraries();
 
-    for (let i = 0; i < categories.length; i++) {
-      const category = categories[i];
-
+    for (const category of categories) {
       // Check if conditions are valid.
       if (category.conditions.length <= 0) {
         throw new Error(
@@ -162,14 +161,27 @@ namespace ScanCategorizer {
         // Sort the matches by priority.
         const sorted = Query.sortMatchesByPriority(matches);
 
+        // Handle first category matched.
         Logger.log('Apply category: ' + sorted[0].name);
         handleMatch(file, sorted[0]);
+
         for (let i = 1; i < sorted.length; i++) {
           const category = sorted[i];
+
+          // Check if category allows for secondary categorization.
+          if (!category.allowSecondary) {
+            Logger.log(
+              `Category ${category.name} is not allowed to be a secondary category and will be skipped.`,
+            );
+
+            // Skip
+            continue;
+          }
 
           Logger.log('Creating shortcuts for category: ' + category.name);
           handleMatch(file, category, true);
         }
+
         Logger.log('Finished processing file: ' + file.getName());
       }
     });

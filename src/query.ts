@@ -1,3 +1,6 @@
+import {Helpers} from './helpers';
+
+/* eslint-disable no-unused-vars */
 export namespace Query {
   export const enum Priority {
     LOW = -1,
@@ -43,6 +46,12 @@ export namespace Query {
      * Optional custom rename function.
      */
     rename?: ((document: GoogleAppsScript.Drive.File) => string) | string;
+
+    /**
+     * Allow secondary match. When this option is set `true`,
+     * the category will also be applied even if it's not the first / best match.
+     */
+    allowSecondary?: boolean;
   }
 
   /**
@@ -97,9 +106,8 @@ export namespace Query {
     switch (condition.type) {
       case 'and':
         // Iterates over all values and checks if all of them matches.
-        for (let i = 0; i < cleanedValues.length; i++) {
-          const value = cleanedValues[i];
-          if (typeof value === 'string') {
+        for (const value of cleanedValues) {
+          if (Helpers.isString(value)) {
             if (!cleanedWords.includes(value)) {
               return false;
             }
@@ -111,11 +119,10 @@ export namespace Query {
         }
         return true;
 
-      default:
+      case 'or':
         // Iterates over all values and checks if any of them matches.
-        for (let i = 0; i < cleanedValues.length; i++) {
-          const value = cleanedValues[i];
-          if (typeof value === 'string') {
+        for (const value of cleanedValues) {
+          if (Helpers.isString(value)) {
             if (cleanedWords.includes(value)) {
               return true;
             }
@@ -126,6 +133,9 @@ export namespace Query {
           }
         }
         return false;
+
+      default:
+        throw new Error(`Unknown condition type: ${condition.type}`);
     }
   };
 
@@ -154,11 +164,9 @@ export namespace Query {
     categories: Category[],
   ): Category[] => {
     const matches: Category[] = [];
-    for (let i = 0; i < categories.length; i++) {
-      const category = categories[i];
+    for (const category of categories) {
       const evaluatedConditions: boolean[] = [];
-      for (let j = 0; j < category.conditions.length; j++) {
-        const condition = category.conditions[j];
+      for (const condition of category.conditions) {
         evaluatedConditions.push(applies(words, condition));
       }
 
