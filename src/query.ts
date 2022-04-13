@@ -2,12 +2,6 @@ import {Helpers} from './helpers';
 
 /* eslint-disable no-unused-vars */
 export namespace Query {
-  export const enum Priority {
-    LOW = -1,
-    DEFAULT = 0,
-    HIGH = 1,
-  }
-
   export interface Condition {
     type: 'and' | 'or';
     values: (RegExp | string)[];
@@ -190,10 +184,10 @@ export namespace Query {
   export const sortMatchesByPriority = (matches: Category[]): Category[] => {
     return matches.sort((a: Category, b: Category) => {
       if (!a.priority) {
-        a.priority = Priority.DEFAULT;
+        a.priority = 0;
       }
       if (!b.priority) {
-        b.priority = Priority.DEFAULT;
+        b.priority = 0;
       }
       if (a.priority > b.priority) {
         return -1;

@@ -165,21 +165,23 @@ namespace ScanCategorizer {
         Logger.log('Apply category: ' + sorted[0].name);
         handleMatch(file, sorted[0]);
 
-        for (let i = 1; i < sorted.length; i++) {
-          const category = sorted[i];
+        if (sorted.length > 1) {
+          for (let i = 1; i < sorted.length; i++) {
+            const category = sorted[i];
 
-          // Check if category allows for secondary categorization.
-          if (!category.allowSecondary) {
-            Logger.log(
-              `Category ${category.name} is not allowed to be a secondary category and will be skipped.`,
-            );
+            // Check if category allows for secondary categorization.
+            if (!category.allowSecondary) {
+              Logger.log(
+                `Category ${category.name} is not allowed to be a secondary category and will be skipped.`,
+              );
 
-            // Skip
-            continue;
+              // Skip
+              continue;
+            }
+
+            Logger.log('Creating shortcuts for category: ' + category.name);
+            handleMatch(file, category, true);
           }
-
-          Logger.log('Creating shortcuts for category: ' + category.name);
-          handleMatch(file, category, true);
         }
 
         Logger.log('Finished processing file: ' + file.getName());
