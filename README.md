@@ -1,143 +1,168 @@
-# Scan Categorizer 🏸
+[![clasp](https://img.shields.io/badge/built%20with-clasp-4285f4.svg)](https://github.com/google/clasp)
 
-Google Script for better scan workflow. This script allows you to categorize scanned documents with predefined categories and organize your Drive.
-The script uses OCR to check if one or more of the given keywords are included in the document and if only one category is matched it will organize according to configuration.
+# Scan Categorizer v2 🗃
 
-**Scan and forget!**
+Script that organizes all PDF files and moves, renames and creates shortcuts dynamically according to predefined categories and file contents. This script can easily be implemented in your current workflows and saves time navigating through Google Drive and enforces directory structures.
 
-## Table of Contents 🧾
+Currently, there are two types of conditions that can be applied to each category:
 
-- [Scan Categorizer 🏸](#scan-categorizer-)
-  - [Table of Contents 🧾](#table-of-contents-)
-  - [Current Workflow ⏳](#current-workflow-)
-  - [Workflow with Scan Categorizer 🎉](#workflow-with-scan-categorizer-)
-  - [Installation 🎈](#installation-)
-  - [Configuration ⚙](#configuration-)
-    - [SCAN_FOLDER_ID](#scan_folder_id)
-    - [REPORT_EMAIL](#report_email)
-    - [CATEGORIES](#categories)
-  - [Usage 🚀](#usage-)
-  - [Authors 👨‍💻](#authors-)
-  - [License 📃](#license-)
-  - [Contributing 🤝](#contributing-)
+- `or` conditions, which require the document to include one of the words defined.
+- `and` conditions, which require the document to include all the words defined.
 
-## Current Workflow ⏳
+The conditions can also be chained and multiple conditions of different types can be applied to one category.
 
-![Current Workflow](https://github.com/iperka/scan-categorizer/blob/main/current-flow.png "Current Workflow")
-
-- Scan your document with any scanner.
-- Upload into Google Drive folder.
-- Check files if multiple scanns made at once.
-- Organize documents and navigate throw whole Google Drive.
-- Handle the next document.
-
-```javascript
-while (true) {
-  scanDocument();
-  uploadDocument();
-  if (isMultiScan) {
-    checkDocuments();
-    derterminateCategoryAndLocation();
-  }
-  organizeDocuments();
-}
-```
-
-## Workflow with Scan Categorizer 🎉
-
-With the use of this script you can save a significant amount of time navigating throw your folders and analizing PDF's. Just scan and forget!
-
-- Scan your document with any scanner.
-- Upload into Google Drive folder. (SwiftScan can automatically upload into folder!)
-- Done! The Script will handle the rest for you.
-
-## Installation 🎈
-
-Create a new [Google Script](https://script.google.com/) Project within your Google Account. (If App Script is not enabled for your account ask your administrator or switch the account.) When created the project should open an editor. Edit the `Code.gs` and paste the script you downloaded.
-
-Add the `Drive` and `Gmail` service to the project and hit `Run`. The script should ask for permission. Grant the required permissions and test the script.
-
-It's recommended to test your configuration before creating a `Trigger`.
-
-## Configuration ⚙
-
-Adjust the values to your needs.
-
-### SCAN_FOLDER_ID
-
-The script will only handle PDFs inside the given folder. Define your input folder.
-
-```js
-const SCAN_FOLDER_ID = "1ZNbdXdDdOd-djdedxd9dod1dLdrdwdFd";
-```
-
-### REPORT_EMAIL
-
-Whenever a document can't be categorized due to missing keywords or more than one matched category, you will get notified via email.
-
-```js
-const REPORT_EMAIL = "your-email@example.com";
-```
-
-### CATEGORIES
-
-This option defines the categories. Every PDF document that includes one or more of the defined `keywords` will be matched and will apply the category. The `rename` property is optional and can be used to rename the name of the document as required. The extension must be included and must always return a filename or throw an `Error`.
-
-**NEW FEATURE - SHORTCUTS**
-
-Since the version `1.7.1` you are able to define shortcut paths. This works like the category `path` property but has to be inside an `array`. Every path defined inside the shortcuts `array` will create a link to the file. (You can use the same variables as in the `path` property.)
-
-Potential use case: Taxes require some documents like salary statements. You can categorize them as salary statements and keep track of them in their own folder but create a link inside your taxes folder.
-
-Since version `1.8.1` you can also create a new shortcut from your custom rename function.
-See example below:
-
-
-```js
-const CATEGORIES = [
+```ts
+// Don't worry, there is no coding skills required. Just use the UI to generate conditions!
+const conditions = [
+  {name: 'Lorem', conditions: [and('lorem', 'ipsum')], path: 'Lorem/$y'},
+  {name: 'Ipsum', conditions: [or('ipsum', 'dolor')], path: 'Ipsum/$y'},
   {
-    name: "Foo Bar",
-    keywords: ["foo", "bar"],
-    path: "Foo/Bar/$y/$m",
-    shortcuts: ["Bar/Foo/$y-$m"], // NEW
-    rename: function (document) {
-      // File ID
-      Logger.log(document.id);
-
-      // Current Filename
-      Logger.log(document.name);
-
-      // Text contents
-      Logger.log(document.text);
-
-      // Creation date
-      Logger.log(document.date);
-
-      // NEW: Create a shortcut from rename function
-      document.addShortcut("MY SHORTCUT NAME", "Foo/Bar/$y/$m/$d/$S/");
-
-      // Return new filename
-      return "new filename";
-    },
+    name: 'Ipsum',
+    conditions: [or('ipsum', 'dolor'), and('lorem', 'ipsum')],
+    path: 'Ipsum/$y',
   },
 ];
 ```
 
-## Usage 🚀
+## Table of contents 📚
 
-Be sure to configure the script accordingly before using it.
+- [Scan Categorizer v2 🗃](#scan-categorizer-v2-)
+  - [Table of contents 📚](#table-of-contents-)
+  - [Getting Started 🚀](#getting-started-)
+  - [Installation 👾](#installation-)
+    - [Step 1 - Create new Script](#step-1---create-new-script)
+    - [Step 2 - Add library](#step-2---add-library)
+    - [Step 3 - Configure](#step-3---configure)
+  - [Possible use cases 🔥](#possible-use-cases-)
+  - [Migrate 🚧](#migrate-)
+  - [API ✨](#api-)
+  - [Development 🦺](#development-)
+  - [Authors 💻](#authors-)
+  - [Contributing 🤝](#contributing-)
 
-- Scan a document with your scanner or favorite scanner app. (SwiftScan is recommend)
-- Upload your PDF document to Google Drive into the defined Scanner folder.
-- Manually or automatically trigger script and all the documents will get categorized and organized.
+## Getting Started 🚀
 
-## Authors 👨‍💻
+Follow the 7 simple steps in the [Installation](#installation) guide and start configuring your categories. You can even add your code and customize it even more.
+
+## Installation 👾
+
+### Step 1 - Create new Script
+
+Create a new [Google Script](https://script.google.com/) Project within your Google Account. (If App Script is not enabled for your account ask your administrator or switch the account.) When created the project should open an editor.
+
+### Step 2 - Add library
+
+In the sidebar menu, click the plus icon on the left-hand side of Libraries.
+
+![Screenshot](assets/add_lib.png)
+
+- Insert `1489WTMiopg0jt53nfftMhbrHyuF67ieIKOoN2ZCuLLUYNRynw6u6GFS2` as script ID.
+- Select your version. (In most cases, choose the latest version.)
+- Import the library with the name `sc`.
+
+### Step 3 - Configure
+
+Insert the contents from category UI into your `Code.gs` file.
+When running the script you get should asked for permission. Grant the required permissions and test the script.
+
+It's recommended to test your configuration before creating a `Trigger`.
+
+## Possible use cases 🔥
+
+- Finally, go digital by scanning and automatically organizing your old papers.
+- Enforce directory structures.
+- Automatically distribute incoming mail.
+- Create shortcuts for each invoice for your taxes.
+
+## Migrate 🚧
+
+Thanks for using version 1 already, you're awesome! There are several changes in version 2 that will affect your current configurations.
+
+- `$S` argument has been deprecated and can no longer be used.
+- There is no more notification email when documents can't get categorized.
+- When using custom `rename` functions the `addShortcut` has also been deprecated.
+- The `keywords` property has been replaced by `conditions`.
+
+<table>
+    <thead>
+        <tr>
+            <th>v1 Syntax</th>
+            <th>v2 Syntax</th>
+        </tr>
+    </thead>
+    <tbody>
+<tr>
+<td>
+
+```ts
+{
+  name: "Lorem",
+  keywords: ["Lorem", "Ipsum"],
+  path: "Lorem/$y/$m",
+}
+```
+
+</td>
+<td>
+
+```ts
+{
+  name: "Lorem",
+  conditions: [or("Lorem", "Ipsum")],
+  path: "Lorem/$y/$m",
+}
+```
+
+</td>
+</tr>
+<tr>
+<td>
+
+```ts
+{
+  name: "Lorem",
+  keywords: ["Lorem", "Ipsum"],
+  shortcuts: ["Ipsum/$y"]
+  path: "Lorem/$y/$m",
+}
+```
+
+</td>
+<td>
+
+```ts
+{
+  name: "Lorem",
+  conditions: [or("Lorem", "Ipsum")],
+  shortcuts: ["Ipsum/$y"] // Still the same
+  path: "Lorem/$y/$m",
+}
+```
+
+</td>
+</tr>
+</tbody>
+</table>
+
+We're sorry if you ran into problems. Please open an Issue if you need help.
+
+## API ✨
+
+### Functions
+```ts
+sc.categorize(categories: Query.Category[], src: string[]): void
+```
+
+## Development 🦺
+
+The repository uses Typescript and transpires and pushes the code to the corresponding Google App Script.
+
+Clone the repository and install the dependencies with `yarn install`.
+Keep in mind that by default, every function is hidden by using the namespace technique described by clasp docs. To export a function to the users, simply define a wrapper function inside the `index.ts` file (See existing for guidance).
+
+## Authors 💻
 
 - **Michael Beutler** - _Initial work_ - [MichaelBeutler](https://github.com/MichaelBeutler)
-
-## License 📃
-
-[MIT](https://choosealicense.com/licenses/mit/)
 
 ## Contributing 🤝
 
