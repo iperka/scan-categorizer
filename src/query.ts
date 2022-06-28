@@ -39,7 +39,9 @@ export namespace Query {
     /**
      * Optional custom rename function.
      */
-    rename?: ((document: GoogleAppsScript.Drive.File) => string) | string;
+    rename?:
+      | ((document: GoogleAppsScript.Drive.File & {text: string}) => string)
+      | string;
 
     /**
      * Allow secondary match. When this option is set `true`,

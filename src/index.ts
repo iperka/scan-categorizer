@@ -88,7 +88,11 @@ namespace ScanCategorizer {
         const rename =
           typeof category.rename === 'string'
             ? category.rename
-            : category.rename({getName: () => 'TEMP'} as any);
+            : category.rename({
+                getName: () => 'TEMP',
+                getId: () => 'TEMP',
+                text: 'Lorem Ipsum',
+              } as any);
 
         // Check if rename is valid.
         if (!/\.pdf$/.test(rename)) {
@@ -163,7 +167,7 @@ namespace ScanCategorizer {
 
         // Handle first category matched.
         Logger.log('Apply category: ' + sorted[0].name);
-        handleMatch(file, sorted[0]);
+        handleMatch({...file, text}, sorted[0]);
 
         if (sorted.length > 1) {
           for (let i = 1; i < sorted.length; i++) {
@@ -180,7 +184,7 @@ namespace ScanCategorizer {
             }
 
             Logger.log('Creating shortcuts for category: ' + category.name);
-            handleMatch(file, category, true);
+            handleMatch({...file, text}, category, true);
           }
         }
 
@@ -190,7 +194,7 @@ namespace ScanCategorizer {
   };
 
   const handleMatch = (
-    file: GoogleAppsScript.Drive.File,
+    file: GoogleAppsScript.Drive.File & {text: string},
     category: Query.Category,
     onlyShortcut?: boolean,
   ) => {
@@ -201,7 +205,7 @@ namespace ScanCategorizer {
       category.rename !== undefined
         ? typeof category.rename === 'string'
           ? Helpers.populate(category.rename, date)
-          : category.rename(file)
+          : category.rename({...file})
         : file.getName();
 
     if (!/\.pdf$/.test(name)) {
