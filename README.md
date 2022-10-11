@@ -24,9 +24,9 @@ const conditions = [
 ];
 ```
 
-If you want to match multiple words you can simply use a RegExp. For example, if you want to match all documents that contain the word `lorem ipsum`, you can use the following RegExp: `/lorem ipsum/`.
+If you want to match multiple words you can simply use a RegExp. For example, if you want to match all documents that contain the words `Lorem Ipsum`, you can use the following RegExp: `/lorem ipsum/`.
 
-It's important to use a space between the words, otherwise the script will not be able to match the words correctly.
+It's important to use a **space between the words**, otherwise the script will not be able to match the words correctly and bare in mind that default JavaScript RegExp are **case sensitive** and must be **lowercase** only.
 
 ## Table of contents 📚
 
@@ -154,6 +154,7 @@ We're sorry if you ran into problems. Please open an Issue if you need help.
 ## API ✨
 
 ### Functions
+
 ```ts
 sc.categorize(categories: Query.Category[], src: string[]): void
 ```
