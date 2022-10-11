@@ -11,7 +11,7 @@ describe('Query', () => {
         {
           v: Query.and('test1', /d/),
           e: {type: 'and', values: ['test1', /d/]},
-        },
+        }
       ];
 
       tests.forEach((test) => {
@@ -76,6 +76,7 @@ describe('Query', () => {
           ['test1', 'test2', 'test3'],
           Query.and('test1', /^test1/),
         ),
+        Query.applies(['test1', 'test2', 'test3'], Query.and(/test1 test2/)),
       ];
 
       tests.forEach((test) => {

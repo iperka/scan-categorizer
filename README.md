@@ -24,6 +24,10 @@ const conditions = [
 ];
 ```
 
+If you want to match multiple words you can simply use a RegExp. For example, if you want to match all documents that contain the word `lorem ipsum`, you can use the following RegExp: `/lorem ipsum/`.
+
+It's important to use a space between the words, otherwise the script will not be able to match the words correctly.
+
 ## Table of contents 📚
 
 - [Scan Categorizer v2 🗃](#scan-categorizer-v2-)
@@ -36,6 +40,7 @@ const conditions = [
   - [Possible use cases 🔥](#possible-use-cases-)
   - [Migrate 🚧](#migrate-)
   - [API ✨](#api-)
+    - [Functions](#functions)
   - [Development 🦺](#development-)
   - [Authors 💻](#authors-)
   - [Contributing 🤝](#contributing-)
