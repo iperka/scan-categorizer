@@ -198,7 +198,22 @@ namespace ScanCategorizer {
     category: Query.Category,
     onlyShortcut?: boolean,
   ) => {
-    const date: Date = new Date(file.getDateCreated().getTime());
+    let date: Date = new Date(file.getDateCreated().getTime());
+    if (
+      file.getName().match(/[1-2][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]/g)
+        .length === 1
+    ) {
+      const d = file
+        .getName()
+        .match(/[1-2][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]/g)[0];
+      const dateArray = d.split('-');
+      (date = new Date(
+        parseInt(dateArray[0]),
+        parseInt(dateArray[1]) - 1,
+        parseInt(dateArray[2]),
+      )),
+        Logger.log('Date found in file name: ' + date);
+    }
 
     // Check if custom name is defined.
     const name =

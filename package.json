@@ -1,7 +1,7 @@
 {
   "name": "@iperka/scan-categorizer",
   "description": "Categorize your scanned documents and organize them in folders.",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "main": "index.js",
   "license": "MIT",
   "author": {
