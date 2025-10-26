@@ -159,12 +159,90 @@ We're sorry if you ran into problems. Please open an Issue if you need help.
 sc.categorize(categories: Query.Category[], src: string[]): void
 ```
 
+### Helper Methods
+
+The library provides several helper methods for better configuration and file management:
+
+#### `isValidPath(path: string): boolean`
+Validates a path string for category configuration, ensuring it meets minimum requirements and doesn't contain invalid characters.
+
+#### `isValidPdfFileName(fileName: string): boolean`
+Validates a file name to ensure it has a `.pdf` extension.
+
+#### `sanitizeFileName(fileName: string): string`
+Sanitizes a file name by removing or replacing invalid characters. Useful when generating file names from user input or document content.
+
+#### `formatDate(date?: Date): string`
+Formats a date as `YYYY-MM-DD` string, useful for file naming and path generation.
+
+#### `extractDateFromFileName(fileName: string): Date | null`
+Extracts a date from a file name if it contains a date in `YYYY-MM-DD` format.
+
 ## Development 🦺
 
 The repository uses Typescript and transpires and pushes the code to the corresponding Google App Script.
 
 Clone the repository and install the dependencies with `yarn install`.
 Keep in mind that by default, every function is hidden by using the namespace technique described by clasp docs. To export a function to the users, simply define a wrapper function inside the `index.ts` file (See existing for guidance).
+
+### Code Quality
+
+This project uses several tools to maintain code quality:
+
+- **ESLint** - For code linting and style enforcement
+- **Jest** - For unit testing with coverage reporting
+- **Husky** - For Git hooks
+- **Commitlint** - For enforcing conventional commit messages
+
+### Pre-commit Hooks
+
+The repository uses [Husky](https://typicode.github.io/husky/) to run pre-commit hooks that automatically:
+- Run ESLint to check code quality
+- Run tests to ensure nothing is broken
+
+These hooks run automatically before each commit to maintain code quality.
+
+### Conventional Commits
+
+This project follows the [Conventional Commits](https://www.conventionalcommits.org/) specification for commit messages. Commit messages must follow this format:
+
+```
+<type>(<scope>): <subject>
+```
+
+**Types:**
+- `feat` - A new feature
+- `fix` - A bug fix
+- `docs` - Documentation changes
+- `style` - Code style changes (formatting, missing semi-colons, etc.)
+- `refactor` - Code refactoring
+- `perf` - Performance improvements
+- `test` - Adding or updating tests
+- `build` - Build system changes
+- `ci` - CI/CD changes
+- `chore` - Other changes that don't modify src or test files
+- `revert` - Reverting a previous commit
+
+**Examples:**
+```
+feat: add new helper method for date extraction
+fix: correct sanitization of file names
+docs: update README with new helper methods
+test: increase coverage for helpers module
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+yarn test
+
+# Run tests with coverage
+yarn test --coverage
+
+# Run linter
+yarn lint
+```
 
 ## Authors 💻
 
