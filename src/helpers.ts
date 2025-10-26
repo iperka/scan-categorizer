@@ -171,4 +171,108 @@ export namespace Helpers {
       htmlBody,
     });
   };
+
+  /**
+   * Validates a path string for category configuration.
+   * Ensures the path meets minimum requirements and doesn't contain invalid characters.
+   *
+   * @author Michael Beutler
+   * @param {string} path Path string to validate.
+   * @return {boolean} True if path is valid, false otherwise.
+   */
+  export const isValidPath = (path: string): boolean => {
+    if (!path || typeof path !== 'string') return false;
+    if (path.length < 4) return false;
+    // Check for invalid characters (e.g., \, :, *, ?, ", <, >, |)
+    if (/[\\:*?"<>|]/.test(path)) return false;
+    return true;
+  };
+
+  /**
+   * Validates a file name to ensure it has a .pdf extension.
+   *
+   * @author Michael Beutler
+   * @param {string} fileName File name to validate.
+   * @return {boolean} True if file name is valid and ends with .pdf.
+   */
+  export const isValidPdfFileName = (fileName: string): boolean => {
+    if (!fileName || typeof fileName !== 'string') return false;
+    return /\.pdf$/i.test(fileName);
+  };
+
+  /**
+   * Sanitizes a file name by removing or replacing invalid characters.
+   * Useful when generating file names from user input or document content.
+   *
+   * @author Michael Beutler
+   * @param {string} fileName File name to sanitize.
+   * @return {string} Sanitized file name.
+   */
+  export const sanitizeFileName = (fileName: string): string => {
+    if (!fileName || typeof fileName !== 'string') return 'untitled.pdf';
+    
+    // Remove .pdf extension temporarily to work with the base name
+    let baseName = fileName.replace(/\.pdf$/i, '');
+    
+    // Replace invalid characters with underscores
+    baseName = baseName.replace(/[\\/:*?"<>|]/g, '_');
+    
+    // Remove multiple consecutive underscores
+    baseName = baseName.replace(/_+/g, '_');
+    
+    // Remove leading/trailing underscores and spaces
+    baseName = baseName.trim().replace(/^_+|_+$/g, '');
+    
+    // If base name is empty after sanitization, use default
+    if (!baseName) return 'untitled.pdf';
+    
+    return baseName + '.pdf';
+  };
+
+  /**
+   * Formats a date as YYYY-MM-DD string.
+   * Useful for file naming and path generation.
+   *
+   * @author Michael Beutler
+   * @param {Date} date Date to format.
+   * @return {string} Formatted date string.
+   */
+  export const formatDate = (date: Date = new Date()): string => {
+    const year = ('0000' + date.getFullYear()).slice(-4);
+    const month = ('00' + (date.getMonth() + 1)).slice(-2);
+    const day = ('00' + date.getDate()).slice(-2);
+    return `${year}-${month}-${day}`;
+  };
+
+  /**
+   * Extracts a date from a file name if it contains a date in YYYY-MM-DD format.
+   *
+   * @author Michael Beutler
+   * @param {string} fileName File name to extract date from.
+   * @return {Date | null} Extracted date or null if no valid date found.
+   */
+  export const extractDateFromFileName = (fileName: string): Date | null => {
+    if (!fileName || typeof fileName !== 'string') return null;
+    
+    const dateMatch = fileName.match(/[1-2][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]/);
+    if (!dateMatch) return null;
+    
+    const dateParts = dateMatch[0].split('-');
+    const year = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]) - 1; // Month is 0-indexed
+    const day = parseInt(dateParts[2]);
+    
+    const date = new Date(year, month, day);
+    
+    // Validate the date is real
+    if (
+      date.getFullYear() === year &&
+      date.getMonth() === month &&
+      date.getDate() === day
+    ) {
+      return date;
+    }
+    
+    return null;
+  };
 }
