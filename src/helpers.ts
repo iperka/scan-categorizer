@@ -73,6 +73,7 @@ export namespace Helpers {
    * @param {{language: string}} options Additional options for the conversion.
    * @return {string} Text of the PDF file as string.
    */
+  /* istanbul ignore next */
   export const extractTextFromPDF = (
     pdf: GoogleAppsScript.Drive.File,
     options?: {language: string},
@@ -106,6 +107,7 @@ export namespace Helpers {
    * @param {string} path Path to the folder.
    * @return {GoogleAppsScript.Drive.Folder} Folder object.
    */
+  /* istanbul ignore next */
   export const getOrCreateFolder = (
     path: string,
   ): GoogleAppsScript.Drive.Folder => {
@@ -134,6 +136,7 @@ export namespace Helpers {
    * @param {string} path Path to the shortcut.
    * @return {string} Shortcut object id.
    */
+  /* istanbul ignore next */
   export const createShortcut = (
     targetId: string,
     name: string,
@@ -153,6 +156,7 @@ export namespace Helpers {
     return shortcut.id;
   };
 
+  /* istanbul ignore next */
   export const validateLibraries = (): void => {
     if (!Drive.Files) throw new Error('Drive library missing.');
     if (!DriveApp) throw new Error('DriveApp library missing.');
@@ -160,6 +164,7 @@ export namespace Helpers {
     if (!GmailApp) throw new Error('GmailApp library missing.');
   };
 
+  /* istanbul ignore next */
   export const sendEmail = (
     email: string,
     subject: string,
@@ -170,5 +175,109 @@ export namespace Helpers {
       noReply: true,
       htmlBody,
     });
+  };
+
+  /**
+   * Validates a path string for category configuration.
+   * Ensures the path meets minimum requirements and doesn't contain invalid characters.
+   *
+   * @author Michael Beutler
+   * @param {string} path Path string to validate.
+   * @return {boolean} True if path is valid, false otherwise.
+   */
+  export const isValidPath = (path: string): boolean => {
+    if (!path || typeof path !== 'string') return false;
+    if (path.length < 4) return false;
+    // Check for invalid characters (e.g., \, :, *, ?, ", <, >, |)
+    if (/[\\:*?"<>|]/.test(path)) return false;
+    return true;
+  };
+
+  /**
+   * Validates a file name to ensure it has a .pdf extension.
+   *
+   * @author Michael Beutler
+   * @param {string} fileName File name to validate.
+   * @return {boolean} True if file name is valid and ends with .pdf.
+   */
+  export const isValidPdfFileName = (fileName: string): boolean => {
+    if (!fileName || typeof fileName !== 'string') return false;
+    return /\.pdf$/i.test(fileName);
+  };
+
+  /**
+   * Sanitizes a file name by removing or replacing invalid characters.
+   * Useful when generating file names from user input or document content.
+   *
+   * @author Michael Beutler
+   * @param {string} fileName File name to sanitize.
+   * @return {string} Sanitized file name.
+   */
+  export const sanitizeFileName = (fileName: string): string => {
+    if (!fileName || typeof fileName !== 'string') return 'untitled.pdf';
+    
+    // Remove .pdf extension temporarily to work with the base name
+    let baseName = fileName.replace(/\.pdf$/i, '');
+    
+    // Replace invalid characters with underscores
+    baseName = baseName.replace(/[\\/:*?"<>|]/g, '_');
+    
+    // Remove multiple consecutive underscores
+    baseName = baseName.replace(/_+/g, '_');
+    
+    // Remove leading/trailing underscores and spaces
+    baseName = baseName.trim().replace(/^_+|_+$/g, '');
+    
+    // If base name is empty after sanitization, use default
+    if (!baseName) return 'untitled.pdf';
+    
+    return baseName + '.pdf';
+  };
+
+  /**
+   * Formats a date as YYYY-MM-DD string.
+   * Useful for file naming and path generation.
+   *
+   * @author Michael Beutler
+   * @param {Date} date Date to format.
+   * @return {string} Formatted date string.
+   */
+  export const formatDate = (date: Date = new Date()): string => {
+    const year = String(date.getFullYear()).padStart(4, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  /**
+   * Extracts a date from a file name if it contains a date in YYYY-MM-DD format.
+   *
+   * @author Michael Beutler
+   * @param {string} fileName File name to extract date from.
+   * @return {Date | null} Extracted date or null if no valid date found.
+   */
+  export const extractDateFromFileName = (fileName: string): Date | null => {
+    if (!fileName || typeof fileName !== 'string') return null;
+    
+    const dateMatch = fileName.match(/[1-2][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])/);
+    if (!dateMatch) return null;
+    
+    const dateParts = dateMatch[0].split('-');
+    const year = parseInt(dateParts[0]);
+    const month = parseInt(dateParts[1]) - 1; // Month is 0-indexed
+    const day = parseInt(dateParts[2]);
+    
+    const date = new Date(year, month, day);
+    
+    // Validate the date is real
+    if (
+      date.getFullYear() === year &&
+      date.getMonth() === month &&
+      date.getDate() === day
+    ) {
+      return date;
+    }
+    
+    return null;
   };
 }

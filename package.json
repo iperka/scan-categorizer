@@ -24,13 +24,16 @@
     "build": "rollup -c ./rollup.config.js",
     "push": "yarn build && clasp push",
     "deploy": "clasp deploy -d \"Scan categorizer\"",
-    "lint": "eslint ./src/**/*.ts"
+    "lint": "eslint ./src/**/*.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@babel/core": "^7.17.8",
     "@babel/plugin-transform-runtime": "^7.17.0",
     "@babel/preset-env": "^7.16.11",
     "@babel/preset-typescript": "^7.16.7",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@rollup/plugin-babel": "^5.3.1",
     "@rollup/plugin-node-resolve": "^13.1.3",
     "@types/google-apps-script": "^1.0.45",
@@ -41,6 +44,7 @@
     "eslint": "^8.12.0",
     "eslint-config-google": "^0.14.0",
     "eslint-config-prettier": "^8.5.0",
+    "husky": "^9.1.7",
     "jest": "^27.5.1",
     "jest-junit": "^13.0.0",
     "rollup": "^2.70.1",
