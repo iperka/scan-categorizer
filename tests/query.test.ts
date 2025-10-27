@@ -64,6 +64,14 @@ describe('Query', () => {
         expect(test.v).toEqual(test.e);
       });
     });
+
+    it('should handle RegExp in cleanWords', () => {
+      const result = Query.cleanWords(['test1', /regex/, 'test2']);
+      expect(result).toHaveLength(3);
+      expect(result[0]).toBe('test1');
+      expect(result[1]).toEqual(/regex/);
+      expect(result[2]).toBe('test2');
+    });
   });
 
   describe('Query.applies()', () => {

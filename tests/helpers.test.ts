@@ -165,6 +165,21 @@ describe("Helpers", () => {
       expect(Helpers.formatDate(new Date("2022-03-05"))).toBe("2022-03-05");
       expect(Helpers.formatDate(new Date("2022-01-09"))).toBe("2022-01-09");
     });
+
+    it("should handle years with more than 4 digits correctly", () => {
+      const futureDate = new Date();
+      futureDate.setFullYear(10000);
+      const result = Helpers.formatDate(futureDate);
+      expect(result).toContain("10000");
+      expect(result.split('-')[0]).toBe("10000");
+    });
+
+    it("should handle years with less than 4 digits correctly", () => {
+      const oldDate = new Date();
+      oldDate.setFullYear(999);
+      const result = Helpers.formatDate(oldDate);
+      expect(result.split('-')[0]).toBe("0999");
+    });
   });
 
   describe("extractDateFromFileName()", () => {
@@ -195,6 +210,27 @@ describe("Helpers", () => {
     it("should extract first date if multiple dates exist", () => {
       const date = Helpers.extractDateFromFileName("2022-01-15_backup_2022-02-20.pdf");
       expect(date).toEqual(new Date(2022, 0, 15));
+    });
+
+    it("should reject dates with invalid month 00", () => {
+      expect(Helpers.extractDateFromFileName("2022-00-15.pdf")).toBeNull();
+    });
+
+    it("should reject dates with invalid day 00", () => {
+      expect(Helpers.extractDateFromFileName("2022-01-00.pdf")).toBeNull();
+    });
+
+    it("should reject dates with day 32", () => {
+      expect(Helpers.extractDateFromFileName("2022-01-32.pdf")).toBeNull();
+    });
+
+    it("should accept valid leap year date", () => {
+      const date = Helpers.extractDateFromFileName("2020-02-29.pdf");
+      expect(date).toEqual(new Date(2020, 1, 29));
+    });
+
+    it("should reject invalid leap year date", () => {
+      expect(Helpers.extractDateFromFileName("2021-02-29.pdf")).toBeNull();
     });
   });
 });

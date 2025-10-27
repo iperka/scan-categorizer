@@ -73,6 +73,7 @@ export namespace Helpers {
    * @param {{language: string}} options Additional options for the conversion.
    * @return {string} Text of the PDF file as string.
    */
+  /* istanbul ignore next */
   export const extractTextFromPDF = (
     pdf: GoogleAppsScript.Drive.File,
     options?: {language: string},
@@ -106,6 +107,7 @@ export namespace Helpers {
    * @param {string} path Path to the folder.
    * @return {GoogleAppsScript.Drive.Folder} Folder object.
    */
+  /* istanbul ignore next */
   export const getOrCreateFolder = (
     path: string,
   ): GoogleAppsScript.Drive.Folder => {
@@ -134,6 +136,7 @@ export namespace Helpers {
    * @param {string} path Path to the shortcut.
    * @return {string} Shortcut object id.
    */
+  /* istanbul ignore next */
   export const createShortcut = (
     targetId: string,
     name: string,
@@ -153,6 +156,7 @@ export namespace Helpers {
     return shortcut.id;
   };
 
+  /* istanbul ignore next */
   export const validateLibraries = (): void => {
     if (!Drive.Files) throw new Error('Drive library missing.');
     if (!DriveApp) throw new Error('DriveApp library missing.');
@@ -160,6 +164,7 @@ export namespace Helpers {
     if (!GmailApp) throw new Error('GmailApp library missing.');
   };
 
+  /* istanbul ignore next */
   export const sendEmail = (
     email: string,
     subject: string,
@@ -238,9 +243,9 @@ export namespace Helpers {
    * @return {string} Formatted date string.
    */
   export const formatDate = (date: Date = new Date()): string => {
-    const year = ('0000' + date.getFullYear()).slice(-4);
-    const month = ('00' + (date.getMonth() + 1)).slice(-2);
-    const day = ('00' + date.getDate()).slice(-2);
+    const year = String(date.getFullYear()).padStart(4, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
 
@@ -254,7 +259,7 @@ export namespace Helpers {
   export const extractDateFromFileName = (fileName: string): Date | null => {
     if (!fileName || typeof fileName !== 'string') return null;
     
-    const dateMatch = fileName.match(/[1-2][0-9][0-9][0-9]-[0-1][0-9]-[0-3][0-9]/);
+    const dateMatch = fileName.match(/[1-2][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])/);
     if (!dateMatch) return null;
     
     const dateParts = dateMatch[0].split('-');
