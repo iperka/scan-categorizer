@@ -300,4 +300,13 @@ describe('Query', () => {
       });
     });
   });
+
+  describe('Query.applies() error handling', () => {
+    it('should throw error for unknown condition type', () => {
+      const invalidCondition = {type: 'invalid', values: ['test']} as any;
+      expect(() => {
+        Query.applies(['test'], invalidCondition);
+      }).toThrow('Unknown condition type: invalid');
+    });
+  });
 });

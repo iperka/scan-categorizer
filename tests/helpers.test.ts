@@ -233,4 +233,230 @@ describe("Helpers", () => {
       expect(Helpers.extractDateFromFileName("2021-02-29.pdf")).toBeNull();
     });
   });
+
+  describe("createDatePrefixRename()", () => {
+    it("should create rename function with date prefix", () => {
+      const renameFn = Helpers.createDatePrefixRename("Invoice");
+      const mockDoc = {
+        getName: () => "2024-01-15_test.pdf",
+        getDateCreated: () => new Date("2024-01-15"),
+        text: "Invoice content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toMatch(/^2024-01-15_Invoice/);
+      expect(result).toMatch(/\.pdf$/);
+    });
+
+    it("should use document creation date if no date in filename", () => {
+      const renameFn = Helpers.createDatePrefixRename("Contract");
+      const mockDoc = {
+        getName: () => "document.pdf",
+        getDateCreated: () => new Date("2024-03-20"),
+        text: "Contract content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toContain("2024-03-20");
+    });
+
+    it("should include extracted keywords if provided", () => {
+      const renameFn = Helpers.createDatePrefixRename(
+        "Invoice",
+        (text) => "Company",
+      );
+      const mockDoc = {
+        getName: () => "2024-01-15_test.pdf",
+        getDateCreated: () => new Date("2024-01-15"),
+        text: "Invoice content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toContain("Company");
+    });
+  });
+
+  describe("createCategoryDateRename()", () => {
+    it("should create rename with category and date components", () => {
+      const renameFn = Helpers.createCategoryDateRename("Receipt");
+      const mockDoc = {
+        getName: () => "test.pdf",
+        getDateCreated: () => new Date("2024-05-10"),
+        text: "Receipt content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toBe("Receipt_2024_05.pdf");
+    });
+
+    it("should extract date from filename if present", () => {
+      const renameFn = Helpers.createCategoryDateRename("Receipt");
+      const mockDoc = {
+        getName: () => "2024-12-25_receipt.pdf",
+        getDateCreated: () => new Date("2024-01-01"),
+        text: "Receipt content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toBe("Receipt_2024_12.pdf");
+    });
+  });
+
+  describe("createPrefixRename()", () => {
+    it("should preserve original name with category prefix", () => {
+      const renameFn = Helpers.createPrefixRename("Contract");
+      const mockDoc = {
+        getName: () => "agreement-2024.pdf",
+        text: "Contract content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toBe("Contract_agreement-2024.pdf");
+    });
+
+    it("should sanitize invalid characters", () => {
+      const renameFn = Helpers.createPrefixRename("Invoice");
+      const mockDoc = {
+        getName: () => "test:file*.pdf",
+        text: "Invoice content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).not.toContain(":");
+      expect(result).not.toContain("*");
+    });
+  });
+
+  describe("createInvoiceRename()", () => {
+    it("should extract invoice number from text", () => {
+      const renameFn = Helpers.createInvoiceRename();
+      const mockDoc = {
+        getName: () => "document.pdf",
+        getDateCreated: () => new Date("2024-01-15"),
+        text: "Invoice #INV-12345\nTotal: $100",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toContain("INV-12345");
+      expect(result).toContain("2024-01-15");
+    });
+
+    it("should use 'Unknown' if invoice number not found", () => {
+      const renameFn = Helpers.createInvoiceRename();
+      const mockDoc = {
+        getName: () => "document.pdf",
+        getDateCreated: () => new Date("2024-01-15"),
+        text: "Some random text",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toContain("Unknown");
+    });
+
+    it("should handle various invoice number formats", () => {
+      const testCases = [
+        { text: "Invoice: 12345", expected: "12345" },
+        { text: "INV-ABC-001", expected: "ABC-001" },
+        { text: "Invoice # 999", expected: "999" },
+      ];
+
+      testCases.forEach(({ text, expected }) => {
+        const renameFn = Helpers.createInvoiceRename();
+        const mockDoc = {
+          getName: () => "test.pdf",
+          getDateCreated: () => new Date("2024-01-01"),
+          text,
+        } as any;
+
+        const result = renameFn(mockDoc);
+        expect(result).toContain(expected);
+      });
+    });
+  });
+
+  describe("createReceiptRename()", () => {
+    it("should extract vendor name from first line", () => {
+      const renameFn = Helpers.createReceiptRename();
+      const mockDoc = {
+        getName: () => "receipt.pdf",
+        getDateCreated: () => new Date("2024-02-20"),
+        text: "Starbucks Coffee\n123 Main St\nTotal: $5.50",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toContain("Starbucks Coffee");
+      expect(result).toContain("2024-02-20");
+    });
+
+    it("should use 'Unknown' if text is empty", () => {
+      const renameFn = Helpers.createReceiptRename();
+      const mockDoc = {
+        getName: () => "receipt.pdf",
+        getDateCreated: () => new Date("2024-02-20"),
+        text: "",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toContain("Unknown");
+    });
+
+    it("should truncate long vendor names", () => {
+      const renameFn = Helpers.createReceiptRename();
+      const longVendor = "A".repeat(50);
+      const mockDoc = {
+        getName: () => "receipt.pdf",
+        getDateCreated: () => new Date("2024-02-20"),
+        text: longVendor,
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result.length).toBeLessThan(longVendor.length + 20);
+    });
+  });
+
+  describe("createCustomRename()", () => {
+    it("should use pattern with date variables", () => {
+      const renameFn = Helpers.createCustomRename("Doc_$y_$m_$d.pdf");
+      const mockDoc = {
+        getName: () => "test.pdf",
+        getDateCreated: () => new Date("2024-03-15"),
+        text: "Document content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toBe("Doc_2024_03_15.pdf");
+    });
+
+    it("should use text extractor when $text placeholder is present", () => {
+      const renameFn = Helpers.createCustomRename(
+        "Doc_$text_$y.pdf",
+        (text) => "CustomText",
+      );
+      const mockDoc = {
+        getName: () => "test.pdf",
+        getDateCreated: () => new Date("2024-01-01"),
+        text: "Some content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).toContain("CustomText");
+      expect(result).toContain("2024");
+    });
+
+    it("should sanitize the final result", () => {
+      const renameFn = Helpers.createCustomRename(
+        "Doc_$text.pdf",
+        () => "invalid:chars*here",
+      );
+      const mockDoc = {
+        getName: () => "test.pdf",
+        getDateCreated: () => new Date("2024-01-01"),
+        text: "Content",
+      } as any;
+
+      const result = renameFn(mockDoc);
+      expect(result).not.toContain(":");
+      expect(result).not.toContain("*");
+    });
+  });
 });

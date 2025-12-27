@@ -280,4 +280,140 @@ export namespace Helpers {
     
     return null;
   };
+
+  /**
+   * Special rename function that creates a standardized name with date prefix.
+   * Example: "2024-01-15_Invoice_Company.pdf"
+   *
+   * @param {string} categoryName Name of the category.
+   * @param {function} extractKeywords Optional function to extract keywords from text.
+   * @return {function} Rename function for category.
+   */
+  export const createDatePrefixRename = (
+    categoryName: string,
+    extractKeywords?: (text: string) => string,
+  ): ((doc: GoogleAppsScript.Drive.File & {text: string}) => string) => {
+    return (doc: GoogleAppsScript.Drive.File & {text: string}): string => {
+      const extractedDate = extractDateFromFileName(doc.getName());
+      const date = extractedDate || new Date(doc.getDateCreated().getTime());
+      const dateStr = formatDate(date);
+      
+      let keywords = '';
+      if (extractKeywords) {
+        keywords = '_' + extractKeywords(doc.text);
+      }
+      
+      return sanitizeFileName(
+        `${dateStr}_${categoryName}${keywords}.pdf`,
+      );
+    };
+  };
+
+  /**
+   * Special rename function that creates a name with category and date components.
+   * Example: "Invoice_2024_01_Company.pdf"
+   *
+   * @param {string} categoryName Name of the category.
+   * @return {function} Rename function for category.
+   */
+  export const createCategoryDateRename = (
+    categoryName: string,
+  ): ((doc: GoogleAppsScript.Drive.File & {text: string}) => string) => {
+    return (doc: GoogleAppsScript.Drive.File & {text: string}): string => {
+      const extractedDate = extractDateFromFileName(doc.getName());
+      const date = extractedDate || new Date(doc.getDateCreated().getTime());
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      
+      return sanitizeFileName(`${categoryName}_${year}_${month}.pdf`);
+    };
+  };
+
+  /**
+   * Special rename function that preserves original name with category prefix.
+   * Example: "Invoice_original-document-name.pdf"
+   *
+   * @param {string} categoryName Name of the category.
+   * @return {function} Rename function for category.
+   */
+  export const createPrefixRename = (
+    categoryName: string,
+  ): ((doc: GoogleAppsScript.Drive.File & {text: string}) => string) => {
+    return (doc: GoogleAppsScript.Drive.File & {text: string}): string => {
+      const originalName = doc.getName().replace(/\.pdf$/i, '');
+      return sanitizeFileName(`${categoryName}_${originalName}.pdf`);
+    };
+  };
+
+  /**
+   * Special rename function for invoices that extracts invoice numbers.
+   * Example: "Invoice_INV-12345_2024-01.pdf"
+   *
+   * @return {function} Rename function for invoice category.
+   */
+  export const createInvoiceRename = (): ((
+    doc: GoogleAppsScript.Drive.File & {text: string},
+  ) => string) => {
+    return (doc: GoogleAppsScript.Drive.File & {text: string}): string => {
+      const extractedDate = extractDateFromFileName(doc.getName());
+      const date = extractedDate || new Date(doc.getDateCreated().getTime());
+      const dateStr = formatDate(date);
+      
+      // Try to extract invoice number from text
+      const invoiceMatch = doc.text.match(
+        /(?:invoice|inv|#)\s*[:\-#]?\s*([A-Z0-9\-]+)/i,
+      );
+      const invoiceNumber = invoiceMatch ? invoiceMatch[1] : 'Unknown';
+      
+      return sanitizeFileName(`Invoice_${invoiceNumber}_${dateStr}.pdf`);
+    };
+  };
+
+  /**
+   * Special rename function for receipts that extracts vendor names.
+   * Example: "Receipt_VendorName_2024-01-15.pdf"
+   *
+   * @return {function} Rename function for receipt category.
+   */
+  export const createReceiptRename = (): ((
+    doc: GoogleAppsScript.Drive.File & {text: string},
+  ) => string) => {
+    return (doc: GoogleAppsScript.Drive.File & {text: string}): string => {
+      const extractedDate = extractDateFromFileName(doc.getName());
+      const date = extractedDate || new Date(doc.getDateCreated().getTime());
+      const dateStr = formatDate(date);
+      
+      // Try to extract vendor name (first line or prominent text)
+      const lines = doc.text.split('\n').filter((l) => l.trim().length > 0);
+      const vendor = lines.length > 0 ? lines[0].substring(0, 30).trim() : 'Unknown';
+      
+      return sanitizeFileName(`Receipt_${vendor}_${dateStr}.pdf`);
+    };
+  };
+
+  /**
+   * Special rename function that uses a custom pattern with text extraction.
+   * 
+   * @param {string} pattern Pattern with placeholders: $y, $m, $d, $category, $text
+   * @param {function} textExtractor Function to extract relevant text from document.
+   * @return {function} Rename function for category.
+   */
+  export const createCustomRename = (
+    pattern: string,
+    textExtractor?: (text: string) => string,
+  ): ((doc: GoogleAppsScript.Drive.File & {text: string}) => string) => {
+    return (doc: GoogleAppsScript.Drive.File & {text: string}): string => {
+      const extractedDate = extractDateFromFileName(doc.getName());
+      const date = extractedDate || new Date(doc.getDateCreated().getTime());
+      
+      let result = populate(pattern, date);
+      
+      if (textExtractor && result.includes('$text')) {
+        const extractedText = textExtractor(doc.text);
+        result = result.replace(/\$text/g, extractedText);
+      }
+      
+      return sanitizeFileName(result);
+    };
+  };
 }

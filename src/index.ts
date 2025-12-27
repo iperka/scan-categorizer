@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 import {Helpers} from './helpers';
 import {Query} from './query';
+import {AI} from './ai';
 
 /**
  * Categorizes all files in the given directories based on given categories.
@@ -8,8 +9,13 @@ import {Query} from './query';
  * @author Michael Beutler
  * @param {Query.Category[]} categories Array of categories.
  * @param {string[]} src Array of source folder ID's.
+ * @param {AI.AIConfig} aiConfig Optional AI configuration for uncategorized documents.
  */
-function categorize(categories: Query.Category[], src: string[]): void {
+function categorize(
+  categories: Query.Category[],
+  src: string[],
+  aiConfig?: AI.AIConfig,
+): void {
   // Check if categories are valid.
   if (!categories || categories.length < 1) {
     throw new Error(
@@ -23,7 +29,7 @@ function categorize(categories: Query.Category[], src: string[]): void {
   }
 
   Logger.log('Categorizing...');
-  ScanCategorizer.run(categories, src);
+  ScanCategorizer.run(categories, src, aiConfig);
   Logger.log('Categorizing done.');
 }
 
@@ -56,12 +62,14 @@ namespace ScanCategorizer {
    * @author Michael Beutler
    * @param {Query.Category[]} categories Array of categories.
    * @param {string[]} src Array of source folder ID's.
+   * @param {AI.AIConfig} aiConfig Optional AI configuration.
    * @param {boolean} debug Flag to enable debug mode.
    * @return {void}
    */
   export const run = (
     categories: Query.Category[],
     src: string[],
+    aiConfig?: AI.AIConfig,
     debug: boolean = false,
   ): void => {
     // Validate the libraries that are used in the script.
@@ -155,6 +163,20 @@ namespace ScanCategorizer {
           Logger.log(
             `The file ${file.getName()} doesn't match any configured category.`,
           );
+
+          // Try AI categorization if enabled
+          if (aiConfig?.enabled) {
+            Logger.log('Attempting AI categorization...');
+            AI.processUnmatchedDocument(
+              text,
+              file.getName(),
+              categories,
+              aiConfig,
+            ).catch((error: Error) => {
+              Logger.log('AI categorization failed: ' + error.message);
+            });
+          }
+
           continue;
         }
 
