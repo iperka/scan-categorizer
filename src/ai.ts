@@ -572,13 +572,13 @@ Example:
       <h2>🤖 AI Category Suggestion</h2>
     </div>
     <div class="content">
-      <p>A new category suggestion has been generated for the file: <strong>${fileName}</strong></p>
-      <p><strong>Category Name:</strong> ${suggestion.name}</p>
+      <p>A new category suggestion has been generated for the file: <strong>${fileName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</strong></p>
+      <p><strong>Category Name:</strong> ${suggestion.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
       <p><strong>Confidence:</strong> <span class="confidence">${(suggestion.confidence * 100).toFixed(1)}%</span></p>
       
       <h3>JSON Configuration for category array:</h3>
       <div class="code-block">
-        <pre>${Helpers.sanitizeFileName(jsonConfig)}</pre>
+        <pre>${jsonConfig.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
       </div>
       
       <div class="instructions">
@@ -593,9 +593,9 @@ Example:
       <h3>Example usage:</h3>
       <div class="code-block">
         <pre>{
-  name: "${suggestion.name}",
-  conditions: [${suggestion.conditions.map((c) => `or("${c}")`).join(', ')}],
-  path: "${suggestion.path}",${suggestion.rename ? `\n  rename: "${suggestion.rename}",` : ''}
+  name: "${suggestion.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",
+  conditions: [${suggestion.conditions.map((c) => `or("${c.replace(/</g, '&lt;').replace(/>/g, '&gt;')}")`).join(', ')}],
+  path: "${suggestion.path.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",${suggestion.rename ? `\n  rename: "${suggestion.rename.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",` : ''}
 }</pre>
       </div>
     </div>

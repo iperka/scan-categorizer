@@ -4,6 +4,17 @@
 
 Script that organizes all PDF files and moves, renames and creates shortcuts dynamically according to predefined categories and file contents. This script can easily be implemented in your current workflows and saves time navigating through Google Drive and enforces directory structures.
 
+## ✨ New: AI-Powered Categorization
+
+Version 2 now includes **optional AI-powered categorization** using OpenAI or Google Gemini! When a document doesn't match any existing categories, the AI can analyze it and suggest a new category via email with ready-to-use configuration.
+
+**Key Features:**
+- 🤖 Opt-in AI categorization with OpenAI or Google Gemini
+- 🔒 Privacy-first with customizable filters and text anonymization
+- 📧 Email notifications with JSON category configurations
+- 🏷️ Smart rename functions for invoices, receipts, and more
+- 🛡️ Automatic PII redaction (SSNs, emails, phone numbers, etc.)
+
 Currently, there are two types of conditions that can be applied to each category:
 
 - `or` conditions, which require the document to include one of the words defined.
@@ -69,6 +80,131 @@ In the sidebar menu, click the plus icon on the left-hand side of Libraries.
 
 Insert the contents from category UI into your `Code.gs` file.
 When running the script you get should asked for permission. Grant the required permissions and test the script.
+
+It's recommended to test your configuration before creating a `Trigger`.
+
+## AI-Powered Categorization 🤖
+
+The scan categorizer now supports AI-powered document categorization for files that don't match any existing categories. This feature is **opt-in** and requires an API key from either OpenAI or Google Gemini.
+
+### Setting Up AI
+
+To enable AI categorization, pass an `aiConfig` object as the third parameter to the `categorize` function:
+
+```ts
+const aiConfig = {
+  enabled: true,                           // Enable AI categorization
+  provider: 'openai',                      // or 'gemini'
+  apiKey: 'your-api-key-here',            // Your API key
+  notificationEmail: 'you@example.com',    // Where to send suggestions
+  privacyFilters: ['tax', 'ssn', 'salary'], // Keywords to never send to AI
+  model: 'gpt-4o-mini'                     // Optional: specify model
+};
+
+sc.categorize(categories, sourceFolders, aiConfig);
+```
+
+**How it works:**
+1. When a document doesn't match any category, the AI analyzes its content
+2. The text is automatically anonymized (SSNs, emails, credit cards, etc. are redacted)
+3. If privacy filters match, the document is skipped
+4. AI suggests a category with keywords and path structure
+5. You receive an email with ready-to-use JSON configuration
+
+### Privacy & Security
+
+The AI categorization feature is designed with privacy in mind:
+
+**Automatic Anonymization:**
+- Social Security Numbers (SSN)
+- Credit card numbers
+- Email addresses
+- Phone numbers
+- Dates
+
+**Privacy Filters:**
+```ts
+privacyFilters: ['tax', 'medical', 'ssn', 'salary', 'confidential']
+```
+
+Documents containing these keywords will **never** be sent to AI services.
+
+**Example Email Notification:**
+```json
+{
+  "name": "Invoices",
+  "conditions": [or("invoice"), or("bill")],
+  "path": "Invoices/$y/$m",
+  "rename": "Invoice-$y-$m-$d.pdf"
+}
+```
+
+### Special Rename Functions
+
+The library provides several smart rename functions that work great with AI-suggested categories:
+
+#### `sc.Helpers.createDatePrefixRename(categoryName, extractKeywords?)`
+Creates names like: `2024-01-15_Invoice_Company.pdf`
+
+```ts
+{
+  name: 'Invoices',
+  conditions: [or('invoice')],
+  path: 'Invoices/$y',
+  rename: sc.Helpers.createDatePrefixRename('Invoice')
+}
+```
+
+#### `sc.Helpers.createInvoiceRename()`
+Extracts invoice numbers: `Invoice_INV-12345_2024-01-15.pdf`
+
+```ts
+{
+  name: 'Invoices',
+  conditions: [or('invoice')],
+  path: 'Invoices/$y',
+  rename: sc.Helpers.createInvoiceRename()
+}
+```
+
+#### `sc.Helpers.createReceiptRename()`
+Extracts vendor names: `Receipt_Starbucks_2024-01-15.pdf`
+
+```ts
+{
+  name: 'Receipts',
+  conditions: [or('receipt')],
+  path: 'Receipts/$y/$m',
+  rename: sc.Helpers.createReceiptRename()
+}
+```
+
+#### `sc.Helpers.createCustomRename(pattern, textExtractor?)`
+Custom patterns with placeholders:
+
+```ts
+{
+  name: 'Contracts',
+  conditions: [or('contract')],
+  path: 'Contracts/$y',
+  rename: sc.Helpers.createCustomRename(
+    'Contract_$text_$y-$m-$d.pdf',
+    (text) => {
+      // Extract company name from text
+      const match = text.match(/between .* and ([A-Z][a-z]+ [A-Z][a-z]+)/);
+      return match ? match[1].replace(/ /g, '_') : 'Unknown';
+    }
+  )
+}
+```
+
+**Available Functions:**
+- `createDatePrefixRename(categoryName, extractKeywords?)` - Date-prefixed names
+- `createCategoryDateRename(categoryName)` - Category_Year_Month format
+- `createPrefixRename(categoryName)` - Preserve original with prefix
+- `createInvoiceRename()` - Extract invoice numbers
+- `createReceiptRename()` - Extract vendor names
+- `createCustomRename(pattern, textExtractor?)` - Custom patterns
 
 It's recommended to test your configuration before creating a `Trigger`.
 
@@ -156,8 +292,17 @@ We're sorry if you ran into problems. Please open an Issue if you need help.
 ### Functions
 
 ```ts
-sc.categorize(categories: Query.Category[], src: string[]): void
+sc.categorize(
+  categories: Query.Category[], 
+  src: string[], 
+  aiConfig?: AI.AIConfig
+): void
 ```
+
+**Parameters:**
+- `categories`: Array of category configurations
+- `src`: Array of source folder IDs
+- `aiConfig`: Optional AI configuration for uncategorized documents
 
 ### Helper Methods
 
@@ -177,6 +322,19 @@ Formats a date as `YYYY-MM-DD` string, useful for file naming and path generatio
 
 #### `extractDateFromFileName(fileName: string): Date | null`
 Extracts a date from a file name if it contains a date in `YYYY-MM-DD` format.
+
+#### AI Helper Functions
+
+The library also provides AI-related helper functions:
+
+##### `AI.anonymizeText(text: string, privacyFilters: string[]): string`
+Anonymizes sensitive information in text before sending to AI.
+
+##### `AI.containsPrivacySensitiveContent(text: string, privacyFilters: string[]): boolean`
+Checks if text contains privacy-sensitive content that should not be sent to AI.
+
+##### `AI.createAIService(config: AI.AIConfig): AI.AIService | null`
+Creates an AI service instance based on configuration (OpenAI or Gemini).
 
 ## Development 🦺
 
