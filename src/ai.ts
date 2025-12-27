@@ -30,6 +30,7 @@ export namespace AI {
     /**
      * Categories/keywords that should never be sent to AI for privacy.
      * Example: ['tax', 'ssn', 'salary', 'medical']
+     * NOTE: Best-effort keyword matching. Not guaranteed to catch all cases.
      */
     privacyFilters?: string[];
 
@@ -49,6 +50,13 @@ export namespace AI {
      * Default: 10
      */
     maxAICallsPerRun?: number;
+
+    /**
+     * Maximum characters of text to send to AI (hard cap for privacy).
+     * Text is truncated after best-effort redaction.
+     * Default: 3000
+     */
+    maxTextLength?: number;
   }
 
   /**
@@ -96,6 +104,32 @@ export namespace AI {
     MAX_CONDITIONS: 20,
     MAX_CONDITION_LENGTH: 100,
   };
+
+  /**
+   * Result of AI processing attempt.
+   */
+  export enum AIProcessingResult {
+    /** AI is disabled */
+    DISABLED = 'disabled',
+    /** Rate limit reached */
+    RATE_LIMITED = 'rate_limited',
+    /** Document already processed (duplicate) */
+    DUPLICATE = 'duplicate',
+    /** Privacy-sensitive content detected */
+    PRIVACY_BLOCKED = 'privacy_blocked',
+    /** AI service creation failed */
+    SERVICE_FAILED = 'service_failed',
+    /** AI returned no suggestion */
+    NO_SUGGESTION = 'no_suggestion',
+    /** AI suggestion failed validation */
+    VALIDATION_FAILED = 'validation_failed',
+    /** Successfully sent suggestion via email */
+    SUCCESS = 'success',
+    /** Dry-run completed */
+    DRY_RUN = 'dry_run',
+    /** Error occurred during processing */
+    ERROR = 'error',
+  }
 
   /**
    * Validates and normalizes a category suggestion.
@@ -326,7 +360,15 @@ export namespace AI {
   }
 
   /**
-   * Anonymizes sensitive information in text.
+   * Anonymizes sensitive information in text using best-effort pattern matching.
+   * 
+   * WARNING: This is best-effort redaction only. It will miss:
+   * - Non-US formats and identifiers
+   * - Uncommon PII patterns
+   * - OCR artifacts and malformed text
+   * - Contextual information that may still be sensitive
+   * 
+   * Always use privacy filters for truly sensitive document categories.
    *
    * @param {string} text Text to anonymize.
    * @param {string[]} privacyFilters Keywords that trigger privacy protection.
@@ -340,7 +382,7 @@ export namespace AI {
 
     let anonymized = text;
 
-    // Remove common PII patterns
+    // Best-effort removal of common PII patterns (US-centric)
     // Social Security Numbers (various formats)
     anonymized = anonymized.replace(
       /\b\d{3}[-\s]?\d{2}[-\s]?\d{4}\b/g,
@@ -371,7 +413,7 @@ export namespace AI {
       '[DATE-REDACTED]',
     );
 
-    // Check for privacy filter keywords
+    // Check for privacy filter keywords (case-insensitive, brittle)
     const lowerText = anonymized.toLowerCase();
     for (const filter of privacyFilters) {
       const filterLower = filter.toLowerCase().trim();
@@ -389,7 +431,9 @@ export namespace AI {
   };
 
   /**
-   * Checks if text contains privacy-sensitive content.
+   * Checks if text contains privacy-sensitive content BEFORE redaction.
+   * This is a best-effort keyword check - case-insensitive but brittle.
+   * May miss: OCR artifacts, spacing variations, stemmed forms, non-English.
    *
    * @param {string} text Text to check.
    * @param {string[]} privacyFilters Keywords that indicate privacy-sensitive content.
@@ -719,6 +763,7 @@ Rules:
 
   /**
    * Creates an email body with AI category suggestion.
+   * Includes validation and disclaimer about reviewing before use.
    *
    * @param {SuggestedCategory} suggestion Suggested category from AI.
    * @param {string} fileName Name of the file that needs categorization.
@@ -728,23 +773,47 @@ Rules:
     suggestion: SuggestedCategory,
     fileName: string,
   ): {subject: string; text: string; html: string} => {
+    // Validate the suggestion one more time before emailing
+    const validated = validateCategorySuggestion(suggestion);
+    if (!validated) {
+      throw new Error('Cannot create email: suggestion failed validation');
+    }
+
+    // Create JSON config - ensure it's valid JSON (no trailing commas, etc.)
     const jsonConfig = JSON.stringify(
       {
-        name: suggestion.name,
-        conditions: suggestion.conditions.map((c) => `or('${c}')`),
-        path: suggestion.path,
-        rename: suggestion.rename,
+        name: validated.name,
+        conditions: validated.conditions.map((c) => `or('${c}')`),
+        path: validated.path,
+        rename: validated.rename,
       },
       null,
       2,
     );
 
-    const subject = `AI Category Suggestion: ${suggestion.name}`;
+    // Validate JSON is parseable
+    try {
+      JSON.parse(jsonConfig);
+    } catch (e) {
+      throw new Error('Generated invalid JSON configuration');
+    }
 
-    const text = `A new category suggestion has been generated for the file: ${fileName}
+    // Sanitize email components to prevent injection
+    const safeFileName = fileName
+      .replace(/[\r\n]/g, '')
+      .substring(0, 200);
+    const safeName = validated.name
+      .replace(/[\r\n]/g, '')
+      .substring(0, 100);
 
-Category Name: ${suggestion.name}
-Confidence: ${(suggestion.confidence * 100).toFixed(1)}%
+    const subject = `AI Category Suggestion: ${safeName}`;
+
+    const text = `A new category suggestion has been generated for the file: ${safeFileName}
+
+⚠️  IMPORTANT: Review this suggestion before using. AI-generated configurations may be incorrect.
+
+Category Name: ${validated.name}
+Confidence: ${(validated.confidence * 100).toFixed(1)}%
 
 JSON Configuration for category array:
 ${jsonConfig}
@@ -753,12 +822,13 @@ To add this category to your configuration:
 1. Copy the JSON configuration above
 2. Replace the conditions strings with actual or() calls
 3. Add it to your categories array
+4. TEST the configuration before deploying
 
 Example:
 {
-  name: "${suggestion.name}",
-  conditions: [${suggestion.conditions.map((c) => `or("${c}")`).join(', ')}],
-  path: "${suggestion.path}",${suggestion.rename ? `\n  rename: "${suggestion.rename}",` : ''}
+  name: "${validated.name}",
+  conditions: [${validated.conditions.map((c) => `or("${c}")`).join(', ')}],
+  path: "${validated.path}",${validated.rename ? `\n  rename: "${validated.rename}",` : ''}
 }`;
 
     const html = `<!DOCTYPE html>
@@ -772,6 +842,7 @@ Example:
     .code-block { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 5px; overflow-x: auto; }
     pre { margin: 0; white-space: pre-wrap; word-wrap: break-word; }
     .confidence { color: #0f9d58; font-weight: bold; }
+    .warning { background: #ffebee; padding: 10px; border-left: 4px solid #f44336; margin: 10px 0; color: #c62828; }
     .instructions { background: #fff3cd; padding: 10px; border-left: 4px solid #ffc107; margin: 10px 0; }
   </style>
 </head>
@@ -781,9 +852,13 @@ Example:
       <h2>🤖 AI Category Suggestion</h2>
     </div>
     <div class="content">
-      <p>A new category suggestion has been generated for the file: <strong>${fileName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</strong></p>
-      <p><strong>Category Name:</strong> ${suggestion.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
-      <p><strong>Confidence:</strong> <span class="confidence">${(suggestion.confidence * 100).toFixed(1)}%</span></p>
+      <div class="warning">
+        <strong>⚠️ Review Before Use:</strong> AI-generated suggestions may be incorrect. Always review and test before deploying.
+      </div>
+      
+      <p>A new category suggestion has been generated for the file: <strong>${safeFileName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</strong></p>
+      <p><strong>Category Name:</strong> ${validated.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
+      <p><strong>Confidence:</strong> <span class="confidence">${(validated.confidence * 100).toFixed(1)}%</span></p>
       
       <h3>JSON Configuration for category array:</h3>
       <div class="code-block">
@@ -796,15 +871,16 @@ Example:
           <li>Copy the JSON configuration above</li>
           <li>Replace the conditions strings with actual or() calls</li>
           <li>Add it to your categories array</li>
+          <li><strong>TEST the configuration before deploying</strong></li>
         </ol>
       </div>
       
       <h3>Example usage:</h3>
       <div class="code-block">
         <pre>{
-  name: "${suggestion.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",
-  conditions: [${suggestion.conditions.map((c) => `or("${c.replace(/</g, '&lt;').replace(/>/g, '&gt;')}")`).join(', ')}],
-  path: "${suggestion.path.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",${suggestion.rename ? `\n  rename: "${suggestion.rename.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",` : ''}
+  name: "${validated.name.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",
+  conditions: [${validated.conditions.map((c) => `or("${c.replace(/</g, '&lt;').replace(/>/g, '&gt;')}")`).join(', ')}],
+  path: "${validated.path.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",${validated.rename ? `\n  rename: "${validated.rename.replace(/</g, '&lt;').replace(/>/g, '&gt;')}",` : ''}
 }</pre>
       </div>
     </div>
@@ -847,13 +923,16 @@ Example:
 
   /**
    * Processes a document with AI if it doesn't match any existing categories.
+   * 
+   * This is a separate post-pass that does NOT affect baseline categorization.
+   * AI failures or rate limits will not prevent normal document processing.
    *
    * @param {string} text Document text.
    * @param {string} fileName File name.
    * @param {Query.Category[]} categories Existing categories.
    * @param {AIConfig} config AI configuration.
    * @param {AIRunState} runState Rate limiting and deduplication state.
-   * @return {Promise<boolean>} True if AI was used and suggestion sent.
+   * @return {Promise<AIProcessingResult>} Result indicating what happened.
    */
   export const processUnmatchedDocument = async (
     text: string,
@@ -861,20 +940,21 @@ Example:
     categories: Query.Category[],
     config: AIConfig,
     runState?: AIRunState,
-  ): Promise<boolean> => {
+  ): Promise<AIProcessingResult> => {
     if (!config.enabled) {
-      return false;
+      return AIProcessingResult.DISABLED;
     }
 
     const state = runState || new AIRunState();
     const maxCalls = config.maxAICallsPerRun || 10;
+    const maxTextLength = config.maxTextLength || 3000;
 
     // Check rate limit
     if (!state.canMakeAICall(maxCalls)) {
       Logger.log(
         `AI call limit reached (${maxCalls}). Skipping ${fileName}`,
       );
-      return false;
+      return AIProcessingResult.RATE_LIMITED;
     }
 
     // Check for duplicate document
@@ -883,25 +963,36 @@ Example:
       Logger.log(
         `Document ${fileName} already processed (duplicate detected). Skipping.`,
       );
-      return false;
+      return AIProcessingResult.DUPLICATE;
     }
 
-    // Check for privacy-sensitive content
+    // IMPORTANT: Check for privacy-sensitive content BEFORE redaction
+    // This ensures we catch keywords even if they would be redacted
     if (containsPrivacySensitiveContent(text, config.privacyFilters)) {
       Logger.log(
         `Skipping AI categorization for ${fileName} - privacy-sensitive content detected`,
       );
-      return false;
+      return AIProcessingResult.PRIVACY_BLOCKED;
     }
 
-    // Anonymize text before sending to AI
-    const anonymizedText = anonymizeText(text, config.privacyFilters);
+    // Apply best-effort anonymization
+    let anonymizedText = anonymizeText(text, config.privacyFilters);
+
+    // Apply hard cap on text length (privacy safeguard)
+    if (anonymizedText.length > maxTextLength) {
+      anonymizedText = anonymizedText.substring(0, maxTextLength);
+      Logger.log(
+        `Truncated text for ${fileName} to ${maxTextLength} characters`,
+      );
+    }
 
     // Dry-run mode: log what would be sent without calling AI
     if (config.dryRun) {
       Logger.log(`[DRY-RUN] Would process document: ${fileName}`);
       Logger.log(`[DRY-RUN] Privacy filters: ${JSON.stringify(config.privacyFilters || [])}`);
-      Logger.log(`[DRY-RUN] Anonymized text (first 500 chars): ${anonymizedText.substring(0, 500)}`);
+      Logger.log(`[DRY-RUN] Original text length: ${text.length} chars`);
+      Logger.log(`[DRY-RUN] Anonymized text length: ${anonymizedText.length} chars`);
+      Logger.log(`[DRY-RUN] Text to send (first 500 chars): ${anonymizedText.substring(0, 500)}`);
       Logger.log(`[DRY-RUN] Would send email to: ${config.notificationEmail}`);
       Logger.log(`[DRY-RUN] AI provider: ${config.provider}`);
       
@@ -920,43 +1011,48 @@ Example:
       
       state.markDocumentProcessed(fingerprint);
       state.incrementAICallCount();
-      return true;
+      return AIProcessingResult.DRY_RUN;
     }
 
-    // Get AI service
-    const service = createAIService(config);
-    if (!service) {
-      Logger.log('Failed to create AI service');
-      return false;
+    try {
+      // Get AI service
+      const service = createAIService(config);
+      if (!service) {
+        Logger.log('Failed to create AI service');
+        return AIProcessingResult.SERVICE_FAILED;
+      }
+
+      // Increment call count before making the call
+      state.incrementAICallCount();
+
+      // Get suggestion
+      const suggestion = await service.suggestCategory(
+        anonymizedText,
+        categories,
+      );
+
+      if (!suggestion) {
+        Logger.log(`AI could not suggest a category for ${fileName}`);
+        return AIProcessingResult.NO_SUGGESTION;
+      }
+
+      // Validate suggestion
+      const validatedSuggestion = validateCategorySuggestion(suggestion);
+      if (!validatedSuggestion) {
+        Logger.log(`AI suggestion for ${fileName} failed validation`);
+        return AIProcessingResult.VALIDATION_FAILED;
+      }
+
+      // Mark document as processed
+      state.markDocumentProcessed(fingerprint);
+
+      // Send email with suggestion (includes additional validation)
+      sendSuggestionEmail(config, validatedSuggestion, fileName);
+      return AIProcessingResult.SUCCESS;
+    } catch (error) {
+      Logger.log(`AI processing error for ${fileName}: ${error}`);
+      return AIProcessingResult.ERROR;
     }
-
-    // Increment call count before making the call
-    state.incrementAICallCount();
-
-    // Get suggestion
-    const suggestion = await service.suggestCategory(
-      anonymizedText,
-      categories,
-    );
-
-    if (!suggestion) {
-      Logger.log(`AI could not suggest a category for ${fileName}`);
-      return false;
-    }
-
-    // Validate suggestion
-    const validatedSuggestion = validateCategorySuggestion(suggestion);
-    if (!validatedSuggestion) {
-      Logger.log(`AI suggestion for ${fileName} failed validation`);
-      return false;
-    }
-
-    // Mark document as processed
-    state.markDocumentProcessed(fingerprint);
-
-    // Send email with suggestion
-    sendSuggestionEmail(config, validatedSuggestion, fileName);
-    return true;
   };
 
   /**

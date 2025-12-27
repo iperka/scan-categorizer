@@ -167,18 +167,24 @@ namespace ScanCategorizer {
             `The file ${file.getName()} doesn't match any configured category.`,
           );
 
-          // Try AI categorization if enabled
-          if (aiConfig?.enabled) {
-            Logger.log('Attempting AI categorization...');
+          // SEPARATE POST-PASS: Try AI categorization if enabled
+          // AI failures do NOT affect baseline categorization flow
+          if (aiConfig?.enabled && aiRunState) {
+            Logger.log('Attempting AI categorization (post-pass)...');
             AI.processUnmatchedDocument(
               text,
               file.getName(),
               categories,
               aiConfig,
               aiRunState,
-            ).catch((error: Error) => {
-              Logger.log('AI categorization failed: ' + error.message);
-            });
+            )
+              .then((result) => {
+                Logger.log(`AI processing result: ${result}`);
+              })
+              .catch((error: Error) => {
+                // Swallow errors - AI is best-effort only
+                Logger.log('AI categorization error: ' + error.message);
+              });
           }
 
           continue;

@@ -448,7 +448,7 @@ describe('AI', () => {
   });
 
   describe('processUnmatchedDocument()', () => {
-    it('should return false when AI is disabled', async () => {
+    it('should return DISABLED when AI is disabled', async () => {
       const config: AI.AIConfig = {
         enabled: false,
         provider: 'openai',
@@ -462,10 +462,10 @@ describe('AI', () => {
         [],
         config,
       );
-      expect(result).toBe(false);
+      expect(result).toBe(AI.AIProcessingResult.DISABLED);
     });
 
-    it('should return false for privacy-sensitive content', async () => {
+    it('should return PRIVACY_BLOCKED for privacy-sensitive content', async () => {
       const config: AI.AIConfig = {
         enabled: true,
         provider: 'openai',
@@ -480,10 +480,10 @@ describe('AI', () => {
         [],
         config,
       );
-      expect(result).toBe(false);
+      expect(result).toBe(AI.AIProcessingResult.PRIVACY_BLOCKED);
     });
 
-    it('should return false when service creation fails', async () => {
+    it('should return SERVICE_FAILED when service creation fails', async () => {
       const config: AI.AIConfig = {
         enabled: true,
         provider: 'openai',
@@ -497,7 +497,7 @@ describe('AI', () => {
         [],
         config,
       );
-      expect(result).toBe(false);
+      expect(result).toBe(AI.AIProcessingResult.SERVICE_FAILED);
     });
   });
 
@@ -610,6 +610,7 @@ describe('AI', () => {
         provider: 'openai',
         apiKey: 'test-key',
         notificationEmail: 'test@example.com',
+        dryRun: true, // Use dry-run mode
       };
 
       const result = await AI.processUnmatchedDocument(
@@ -619,8 +620,8 @@ describe('AI', () => {
         config,
       );
 
-      // Should return false because we can't actually call the API in tests
-      expect(typeof result).toBe('boolean');
+      // Should return DRY_RUN result
+      expect(result).toBe(AI.AIProcessingResult.DRY_RUN);
     });
 
     it('should parse response with generic code blocks', () => {
@@ -1021,11 +1022,12 @@ describe('AI', () => {
         apiKey: 'test-key',
         notificationEmail: 'test@example.com',
         maxAICallsPerRun: 1,
+        dryRun: true, // Use dry-run to avoid actual API calls
       };
 
       const state = new AI.AIRunState();
 
-      // First call should succeed (but won't actually call AI in test)
+      // First call should succeed
       const result1 = await AI.processUnmatchedDocument(
         'Test text',
         'test1.pdf',
@@ -1033,6 +1035,7 @@ describe('AI', () => {
         config,
         state,
       );
+      expect(result1).toBe(AI.AIProcessingResult.DRY_RUN);
 
       // Second call should be blocked by rate limit
       const result2 = await AI.processUnmatchedDocument(
@@ -1043,7 +1046,7 @@ describe('AI', () => {
         state,
       );
 
-      expect(result2).toBe(false);
+      expect(result2).toBe(AI.AIProcessingResult.RATE_LIMITED);
     });
 
     it('should detect duplicate documents', async () => {
@@ -1052,6 +1055,7 @@ describe('AI', () => {
         provider: 'openai',
         apiKey: 'test-key',
         notificationEmail: 'test@example.com',
+        dryRun: true, // Use dry-run to avoid actual API calls
       };
 
       const state = new AI.AIRunState();
@@ -1073,7 +1077,7 @@ describe('AI', () => {
         state,
       );
 
-      expect(result2).toBe(false);
+      expect(result2).toBe(AI.AIProcessingResult.DUPLICATE);
     });
 
     it('should work in dry-run mode', async () => {
@@ -1092,7 +1096,7 @@ describe('AI', () => {
         config,
       );
 
-      expect(result).toBe(true);
+      expect(result).toBe(AI.AIProcessingResult.DRY_RUN);
       // In dry-run, it should log but not send email
       expect(global.Logger.log).toHaveBeenCalledWith(
         expect.stringContaining('[DRY-RUN]'),
@@ -1142,6 +1146,103 @@ describe('AI', () => {
       };
 
       expect(config.maxAICallsPerRun).toBe(5);
+    });
+
+    it('should accept maxTextLength option', () => {
+      const config: AI.AIConfig = {
+        enabled: true,
+        provider: 'openai',
+        apiKey: 'test-key',
+        notificationEmail: 'test@example.com',
+        maxTextLength: 5000,
+      };
+
+      expect(config.maxTextLength).toBe(5000);
+    });
+  });
+
+  describe('createSuggestionEmail() with validation', () => {
+    it('should throw error for invalid suggestion', () => {
+      const invalidSuggestion = {
+        name: '',
+        path: 'Invalid',
+        conditions: [],
+      } as any;
+
+      expect(() => {
+        AI.createSuggestionEmail(invalidSuggestion, 'test.pdf');
+      }).toThrow('Cannot create email: suggestion failed validation');
+    });
+
+    it('should include disclaimer in email', () => {
+      const suggestion: AI.SuggestedCategory = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        confidence: 0.9,
+      };
+
+      const email = AI.createSuggestionEmail(suggestion, 'test.pdf');
+      
+      expect(email.text).toContain('Review this suggestion before using');
+      expect(email.html).toContain('Review Before Use');
+    });
+
+    it('should sanitize fileName in email', () => {
+      const suggestion: AI.SuggestedCategory = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        confidence: 0.9,
+      };
+
+      const email = AI.createSuggestionEmail(suggestion, 'test<script>.pdf');
+      
+      expect(email.html).not.toContain('<script>');
+      expect(email.html).toContain('&lt;script&gt;');
+    });
+
+    it('should validate JSON is parseable', () => {
+      const suggestion: AI.SuggestedCategory = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        confidence: 0.9,
+      };
+
+      const email = AI.createSuggestionEmail(suggestion, 'test.pdf');
+      
+      // JSON should be valid
+      expect(() => {
+        const match = email.text.match(/JSON Configuration for category array:\n([\s\S]*?)\n\nTo add/);
+        if (match) {
+          JSON.parse(match[1]);
+        }
+      }).not.toThrow();
+    });
+  });
+
+  describe('Text length limiting', () => {
+    it('should truncate text to maxTextLength', async () => {
+      const longText = 'A'.repeat(5000);
+      const config: AI.AIConfig = {
+        enabled: true,
+        provider: 'openai',
+        apiKey: 'test-key',
+        notificationEmail: 'test@example.com',
+        maxTextLength: 1000,
+        dryRun: true,
+      };
+
+      const result = await AI.processUnmatchedDocument(
+        longText,
+        'test.pdf',
+        [],
+        config,
+      );
+
+      expect(result).toBe(AI.AIProcessingResult.DRY_RUN);
+      // In dry-run, it logs the text length
     });
   });
 

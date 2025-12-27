@@ -93,48 +93,70 @@ To enable AI categorization, pass an `aiConfig` object as the third parameter to
 
 ```ts
 const aiConfig = {
-  enabled: true,                           // Enable AI categorization
+  enabled: true,                           // Enable AI categorization (opt-in)
   provider: 'openai',                      // or 'gemini'
-  apiKey: 'your-api-key-here',            // Your API key
+  apiKey: 'sk-...',                        // ⚠️ DO NOT commit API keys to version control!
   notificationEmail: 'you@example.com',    // Where to send suggestions
-  privacyFilters: ['tax', 'ssn', 'salary'], // Keywords to never send to AI
+  privacyFilters: ['tax', 'ssn', 'salary'], // Keywords to block (best-effort)
   model: 'gpt-4o-mini',                    // Optional: specify model
   dryRun: false,                           // Optional: test without calling AI
-  maxAICallsPerRun: 10                     // Optional: rate limit (default: 10)
+  maxAICallsPerRun: 10,                    // Optional: rate limit (default: 10)
+  maxTextLength: 3000                      // Optional: max chars sent (default: 3000)
 };
 
 sc.categorize(categories, sourceFolders, aiConfig);
 ```
 
+**⚠️ Important: AI is Opt-In and Best-Effort Only**
+
+AI categorization is a **separate post-pass** that runs ONLY for documents without a matching category. AI failures or rate limits will NOT affect your baseline categorization workflow.
+
 **How it works:**
-1. When a document doesn't match any category, the AI analyzes its content
-2. The text undergoes best-effort PII redaction (SSNs, emails, credit cards, etc.)
-3. If privacy filters match, the document is skipped
-4. AI suggests a category with keywords and path structure
-5. You receive an email with ready-to-use JSON configuration
+1. When a document doesn't match any category, AI analyzes its content (post-pass)
+2. Privacy filters are checked BEFORE redaction (best-effort keyword matching)
+3. Text undergoes best-effort PII redaction (US-centric patterns)
+4. Text is truncated to maxTextLength (default: 3000 characters) for privacy
+5. AI suggests a category with keywords and path structure
+6. You receive an email with JSON configuration (review before using!)
+
+**What Content is Sent to AI:**
+- Only the first 3000 characters (configurable via `maxTextLength`) after best-effort redaction
+- Documents matching privacy filters are never sent
+- Redaction removes common US PII patterns (SSN, credit cards, emails, phones, dates)
 
 **Dry-Run Mode:**
-Set `dryRun: true` to test the AI workflow without making actual API calls. This logs what would be sent to the AI and what email would be generated, useful for testing your privacy filters and anonymization.
+Set `dryRun: true` to test the AI workflow without making actual API calls. Logs show what would be sent to AI and what email would be generated. Essential for testing privacy filters.
 
 ### Privacy & Security
 
-The AI categorization feature uses a privacy-first approach with best-effort protections:
+**⚠️ IMPORTANT: Best-Effort Protections Only**
 
-**Best-Effort PII Redaction:**
+The AI categorization uses privacy-first design with multiple safeguards, but these are **best-effort protections**, not guarantees:
+
+**Limitations of Best-Effort Redaction:**
+- ❌ Misses non-US identifiers and uncommon formats
+- ❌ Doesn't detect OCR artifacts or malformed text
+- ❌ Doesn't understand context (e.g., "Patient diagnosis: ...")
+- ❌ Keyword filters are brittle (case/spacing/stemming variations)
+
+**Best-Effort PII Redaction (US-centric patterns):**
 - Social Security Numbers (SSN)
 - Credit card numbers
 - Email addresses
 - Phone numbers
 - Dates
 
-**Note:** While the system attempts to redact common PII patterns, it cannot guarantee complete anonymization. Use privacy filters for sensitive document categories.
-
-**Privacy Filters:**
+**Privacy Filters (case-insensitive keyword blocking):**
 ```ts
 privacyFilters: ['tax', 'medical', 'ssn', 'salary', 'confidential']
 ```
 
-Documents containing these keywords will **never** be sent to AI services.
+**Note:** Filters are checked BEFORE redaction. A document can be sensitive without containing exact keywords. Always use privacy filters for truly sensitive document categories.
+
+Documents containing these keywords will **never** be sent to AI services (checked before redaction).
+
+**Email Notifications:**
+Suggestions are sent via email with valid JSON configuration. Always review suggestions before using - AI-generated configurations may be incorrect.
 
 **Example Email Notification:**
 ```json
