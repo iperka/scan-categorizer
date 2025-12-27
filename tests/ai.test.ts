@@ -7,6 +7,14 @@ global.Logger = {
   log: jest.fn(),
 };
 
+// Mock Helpers.sendEmail
+jest.mock('../src/helpers', () => ({
+  Helpers: {
+    sendEmail: jest.fn(),
+    sanitizeFileName: jest.fn((str) => str),
+  },
+}));
+
 describe('AI', () => {
   describe('anonymizeText()', () => {
     it('should anonymize SSN patterns', () => {
@@ -780,6 +788,505 @@ describe('AI', () => {
 
       const result = (service as any).parseResponse(response);
       expect(result?.name).toBe('Test');
+    });
+  });
+
+  describe('validateCategorySuggestion()', () => {
+    it('should validate a valid suggestion', () => {
+      const suggestion = {
+        name: 'Invoices',
+        path: 'Invoices/$y/$m',
+        conditions: ['invoice', 'bill'],
+        confidence: 0.95,
+        rename: 'Invoice-$y-$m-$d.pdf',
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).not.toBeNull();
+      expect(result?.name).toBe('Invoices');
+      expect(result?.path).toBe('Invoices/$y/$m');
+      expect(result?.conditions).toEqual(['invoice', 'bill']);
+      expect(result?.confidence).toBe(0.95);
+      expect(result?.rename).toBe('Invoice-$y-$m-$d.pdf');
+    });
+
+    it('should reject suggestion with missing required fields', () => {
+      const suggestion = {
+        name: 'Test',
+        // missing path and conditions
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with empty name', () => {
+      const suggestion = {
+        name: '',
+        path: 'Test/$y',
+        conditions: ['test'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with path too short', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'T$y',
+        conditions: ['test'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion without $y in path', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$m/$d',
+        conditions: ['test'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with invalid placeholder in path', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y/$z',
+        conditions: ['test'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with too many conditions', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: Array(25).fill('test'),
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with empty conditions array', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: [] as string[],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject rename not ending with .pdf', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        rename: 'Test-$y-$m-$d.txt',
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should normalize confidence to 0-1 range', () => {
+      const suggestion1 = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        confidence: 1.5,
+      };
+
+      const result1 = AI.validateCategorySuggestion(suggestion1);
+      expect(result1?.confidence).toBe(1);
+
+      const suggestion2 = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        confidence: -0.5,
+      };
+
+      const result2 = AI.validateCategorySuggestion(suggestion2);
+      expect(result2?.confidence).toBe(0);
+    });
+
+    it('should use default confidence if not provided', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result?.confidence).toBe(0.5);
+    });
+
+    it('should trim whitespace from fields', () => {
+      const suggestion = {
+        name: '  Test  ',
+        path: '  Test/$y  ',
+        conditions: ['  test  ', '  keyword  '],
+        rename: '  Test-$y.pdf  ',
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result?.name).toBe('Test');
+      expect(result?.path).toBe('Test/$y');
+      expect(result?.conditions).toEqual(['test', 'keyword']);
+      expect(result?.rename).toBe('Test-$y.pdf');
+    });
+  });
+
+  describe('AIRunState', () => {
+    it('should track AI call count', () => {
+      const state = new AI.AIRunState();
+      expect(state.getAICallCount()).toBe(0);
+
+      state.incrementAICallCount();
+      expect(state.getAICallCount()).toBe(1);
+
+      state.incrementAICallCount();
+      expect(state.getAICallCount()).toBe(2);
+    });
+
+    it('should enforce rate limit', () => {
+      const state = new AI.AIRunState();
+      expect(state.canMakeAICall(2)).toBe(true);
+
+      state.incrementAICallCount();
+      expect(state.canMakeAICall(2)).toBe(true);
+
+      state.incrementAICallCount();
+      expect(state.canMakeAICall(2)).toBe(false);
+    });
+
+    it('should track processed documents', () => {
+      const state = new AI.AIRunState();
+      const fp = state.createDocumentFingerprint('test.pdf', 'test content');
+
+      expect(state.isDocumentProcessed(fp)).toBe(false);
+
+      state.markDocumentProcessed(fp);
+      expect(state.isDocumentProcessed(fp)).toBe(true);
+    });
+
+    it('should create consistent fingerprints', () => {
+      const state = new AI.AIRunState();
+      const fp1 = state.createDocumentFingerprint('test.pdf', 'test content');
+      const fp2 = state.createDocumentFingerprint('test.pdf', 'test content');
+
+      expect(fp1).toBe(fp2);
+    });
+
+    it('should create different fingerprints for different documents', () => {
+      const state = new AI.AIRunState();
+      const fp1 = state.createDocumentFingerprint('test1.pdf', 'content 1');
+      const fp2 = state.createDocumentFingerprint('test2.pdf', 'content 2');
+
+      expect(fp1).not.toBe(fp2);
+    });
+
+    it('should reset state', () => {
+      const state = new AI.AIRunState();
+      state.incrementAICallCount();
+      state.incrementAICallCount();
+      const fp = state.createDocumentFingerprint('test.pdf', 'content');
+      state.markDocumentProcessed(fp);
+
+      expect(state.getAICallCount()).toBe(2);
+      expect(state.isDocumentProcessed(fp)).toBe(true);
+
+      state.reset();
+
+      expect(state.getAICallCount()).toBe(0);
+      expect(state.isDocumentProcessed(fp)).toBe(false);
+    });
+  });
+
+  describe('processUnmatchedDocument with new features', () => {
+    it('should respect rate limit', async () => {
+      const config: AI.AIConfig = {
+        enabled: true,
+        provider: 'openai',
+        apiKey: 'test-key',
+        notificationEmail: 'test@example.com',
+        maxAICallsPerRun: 1,
+      };
+
+      const state = new AI.AIRunState();
+
+      // First call should succeed (but won't actually call AI in test)
+      const result1 = await AI.processUnmatchedDocument(
+        'Test text',
+        'test1.pdf',
+        [],
+        config,
+        state,
+      );
+
+      // Second call should be blocked by rate limit
+      const result2 = await AI.processUnmatchedDocument(
+        'Test text 2',
+        'test2.pdf',
+        [],
+        config,
+        state,
+      );
+
+      expect(result2).toBe(false);
+    });
+
+    it('should detect duplicate documents', async () => {
+      const config: AI.AIConfig = {
+        enabled: true,
+        provider: 'openai',
+        apiKey: 'test-key',
+        notificationEmail: 'test@example.com',
+      };
+
+      const state = new AI.AIRunState();
+
+      // Process same document twice
+      await AI.processUnmatchedDocument(
+        'Test text',
+        'test.pdf',
+        [],
+        config,
+        state,
+      );
+
+      const result2 = await AI.processUnmatchedDocument(
+        'Test text',
+        'test.pdf',
+        [],
+        config,
+        state,
+      );
+
+      expect(result2).toBe(false);
+    });
+
+    it('should work in dry-run mode', async () => {
+      const config: AI.AIConfig = {
+        enabled: true,
+        provider: 'openai',
+        apiKey: 'test-key',
+        notificationEmail: 'test@example.com',
+        dryRun: true,
+      };
+
+      const result = await AI.processUnmatchedDocument(
+        'Test text',
+        'test.pdf',
+        [],
+        config,
+      );
+
+      expect(result).toBe(true);
+      // In dry-run, it should log but not send email
+      expect(global.Logger.log).toHaveBeenCalledWith(
+        expect.stringContaining('[DRY-RUN]'),
+      );
+    });
+
+    it('should use default maxAICallsPerRun if not specified', async () => {
+      const config: AI.AIConfig = {
+        enabled: true,
+        provider: 'openai',
+        apiKey: 'test-key',
+        notificationEmail: 'test@example.com',
+      };
+
+      const state = new AI.AIRunState();
+
+      // Should allow up to 10 calls by default
+      for (let i = 0; i < 10; i++) {
+        expect(state.canMakeAICall(10)).toBe(true);
+        state.incrementAICallCount();
+      }
+
+      expect(state.canMakeAICall(10)).toBe(false);
+    });
+  });
+
+  describe('AIConfig with new options', () => {
+    it('should accept dryRun option', () => {
+      const config: AI.AIConfig = {
+        enabled: true,
+        provider: 'openai',
+        apiKey: 'test-key',
+        notificationEmail: 'test@example.com',
+        dryRun: true,
+      };
+
+      expect(config.dryRun).toBe(true);
+    });
+
+    it('should accept maxAICallsPerRun option', () => {
+      const config: AI.AIConfig = {
+        enabled: true,
+        provider: 'openai',
+        apiKey: 'test-key',
+        notificationEmail: 'test@example.com',
+        maxAICallsPerRun: 5,
+      };
+
+      expect(config.maxAICallsPerRun).toBe(5);
+    });
+  });
+
+  describe('validateCategorySuggestion edge cases', () => {
+    it('should reject null suggestion', () => {
+      const result = AI.validateCategorySuggestion(null);
+      expect(result).toBeNull();
+    });
+
+    it('should reject non-object suggestion', () => {
+      const result = AI.validateCategorySuggestion('not an object');
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with name longer than max', () => {
+      const suggestion = {
+        name: 'A'.repeat(101),
+        path: 'Test/$y',
+        conditions: ['test'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with path longer than max', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'A'.repeat(501) + '/$y',
+        conditions: ['test'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with condition longer than max', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['A'.repeat(101)],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject suggestion with empty condition string', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test', '', 'another'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject rename longer than max', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        rename: 'A'.repeat(256) + '.pdf',
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should reject rename with invalid placeholder', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        rename: 'Test-$y-$z.pdf',
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).toBeNull();
+    });
+
+    it('should accept all valid placeholders in path', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y/$l/$m/$d/$h/$i/$s',
+        conditions: ['test'],
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).not.toBeNull();
+    });
+
+    it('should accept all valid placeholders in rename', () => {
+      const suggestion = {
+        name: 'Test',
+        path: 'Test/$y',
+        conditions: ['test'],
+        rename: 'Test-$y-$l-$m-$d-$h-$i-$s.pdf',
+      };
+
+      const result = AI.validateCategorySuggestion(suggestion);
+      expect(result).not.toBeNull();
+    });
+  });
+
+  describe('buildPrompt with multiple categories', () => {
+    it('should build OpenAI prompt with multiple existing categories', () => {
+      const service = new AI.OpenAIService('test-key');
+      const categories: Query.Category[] = [
+        {
+          name: 'Invoices',
+          conditions: [Query.or('invoice')],
+          path: 'Invoices/$y',
+        },
+        {
+          name: 'Receipts',
+          conditions: [Query.or('receipt')],
+          path: 'Receipts/$y/$m',
+        },
+      ];
+
+      const prompt = (service as any).buildPrompt('Test document text', categories);
+      expect(prompt).toContain('Invoices, Receipts');
+      expect(prompt).toContain('Test document text');
+    });
+
+    it('should build Gemini prompt with multiple existing categories', () => {
+      const service = new AI.GeminiService('test-key');
+      const categories: Query.Category[] = [
+        {
+          name: 'Contracts',
+          conditions: [Query.or('contract')],
+          path: 'Contracts/$y',
+        },
+        {
+          name: 'Reports',
+          conditions: [Query.or('report')],
+          path: 'Reports/$y/$m',
+        },
+      ];
+
+      const prompt = (service as any).buildPrompt('Test report text', categories);
+      expect(prompt).toContain('Contracts, Reports');
+      expect(prompt).toContain('Test report text');
     });
   });
 });

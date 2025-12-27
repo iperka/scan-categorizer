@@ -10,10 +10,10 @@ Version 2 now includes **optional AI-powered categorization** using OpenAI or Go
 
 **Key Features:**
 - 🤖 Opt-in AI categorization with OpenAI or Google Gemini
-- 🔒 Privacy-first with customizable filters and text anonymization
+- 🔒 Privacy-first with customizable filters and best-effort PII redaction
 - 📧 Email notifications with JSON category configurations
 - 🏷️ Smart rename functions for invoices, receipts, and more
-- 🛡️ Automatic PII redaction (SSNs, emails, phone numbers, etc.)
+- 🛡️ Best-effort automatic PII redaction (SSNs, emails, phone numbers, etc.)
 
 Currently, there are two types of conditions that can be applied to each category:
 
@@ -98,7 +98,9 @@ const aiConfig = {
   apiKey: 'your-api-key-here',            // Your API key
   notificationEmail: 'you@example.com',    // Where to send suggestions
   privacyFilters: ['tax', 'ssn', 'salary'], // Keywords to never send to AI
-  model: 'gpt-4o-mini'                     // Optional: specify model
+  model: 'gpt-4o-mini',                    // Optional: specify model
+  dryRun: false,                           // Optional: test without calling AI
+  maxAICallsPerRun: 10                     // Optional: rate limit (default: 10)
 };
 
 sc.categorize(categories, sourceFolders, aiConfig);
@@ -106,21 +108,26 @@ sc.categorize(categories, sourceFolders, aiConfig);
 
 **How it works:**
 1. When a document doesn't match any category, the AI analyzes its content
-2. The text is automatically anonymized (SSNs, emails, credit cards, etc. are redacted)
+2. The text undergoes best-effort PII redaction (SSNs, emails, credit cards, etc.)
 3. If privacy filters match, the document is skipped
 4. AI suggests a category with keywords and path structure
 5. You receive an email with ready-to-use JSON configuration
 
+**Dry-Run Mode:**
+Set `dryRun: true` to test the AI workflow without making actual API calls. This logs what would be sent to the AI and what email would be generated, useful for testing your privacy filters and anonymization.
+
 ### Privacy & Security
 
-The AI categorization feature is designed with privacy in mind:
+The AI categorization feature uses a privacy-first approach with best-effort protections:
 
-**Automatic Anonymization:**
+**Best-Effort PII Redaction:**
 - Social Security Numbers (SSN)
 - Credit card numbers
 - Email addresses
 - Phone numbers
 - Dates
+
+**Note:** While the system attempts to redact common PII patterns, it cannot guarantee complete anonymization. Use privacy filters for sensitive document categories.
 
 **Privacy Filters:**
 ```ts

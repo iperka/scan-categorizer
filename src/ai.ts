@@ -37,6 +37,18 @@ export namespace AI {
      * Model to use (optional, uses provider defaults if not specified).
      */
     model?: string;
+
+    /**
+     * Dry-run mode: test filtering/redaction without calling AI providers.
+     * Logs what would be sent and what would be emailed.
+     */
+    dryRun?: boolean;
+
+    /**
+     * Maximum number of AI calls per run (rate limiting).
+     * Default: 10
+     */
+    maxAICallsPerRun?: number;
   }
 
   /**
@@ -70,6 +82,153 @@ export namespace AI {
   }
 
   /**
+   * Allowed placeholders in path and rename patterns.
+   */
+  const ALLOWED_PLACEHOLDERS = ['$y', '$l', '$m', '$d', '$h', '$i', '$s'];
+
+  /**
+   * Maximum limits for category suggestions.
+   */
+  const SUGGESTION_LIMITS = {
+    MAX_NAME_LENGTH: 100,
+    MAX_PATH_LENGTH: 500,
+    MAX_RENAME_LENGTH: 255,
+    MAX_CONDITIONS: 20,
+    MAX_CONDITION_LENGTH: 100,
+  };
+
+  /**
+   * Validates and normalizes a category suggestion.
+   *
+   * @param {any} suggestion Raw suggestion object to validate.
+   * @return {SuggestedCategory | null} Validated suggestion or null if invalid.
+   */
+  export const validateCategorySuggestion = (
+    suggestion: any,
+  ): SuggestedCategory | null => {
+    // Check required fields
+    if (
+      !suggestion ||
+      typeof suggestion !== 'object' ||
+      !suggestion.name ||
+      !suggestion.path ||
+      !suggestion.conditions ||
+      !Array.isArray(suggestion.conditions)
+    ) {
+      Logger.log('Invalid suggestion: missing required fields');
+      return null;
+    }
+
+    // Validate name
+    const name = String(suggestion.name).trim();
+    if (name.length === 0 || name.length > SUGGESTION_LIMITS.MAX_NAME_LENGTH) {
+      Logger.log(
+        `Invalid name: must be 1-${SUGGESTION_LIMITS.MAX_NAME_LENGTH} characters`,
+      );
+      return null;
+    }
+
+    // Validate path
+    const path = String(suggestion.path).trim();
+    if (path.length < 4 || path.length > SUGGESTION_LIMITS.MAX_PATH_LENGTH) {
+      Logger.log(
+        `Invalid path: must be 4-${SUGGESTION_LIMITS.MAX_PATH_LENGTH} characters`,
+      );
+      return null;
+    }
+
+    // Check for valid placeholders in path
+    const pathPlaceholders = path.match(/\$[a-z]/g) || [];
+    const invalidPathPlaceholders = pathPlaceholders.filter(
+      (p) => !ALLOWED_PLACEHOLDERS.includes(p),
+    );
+    if (invalidPathPlaceholders.length > 0) {
+      Logger.log(
+        `Invalid placeholders in path: ${invalidPathPlaceholders.join(', ')}`,
+      );
+      return null;
+    }
+
+    // Path must include $y
+    if (!path.includes('$y')) {
+      Logger.log('Invalid path: must include $y placeholder');
+      return null;
+    }
+
+    // Validate conditions
+    if (suggestion.conditions.length > SUGGESTION_LIMITS.MAX_CONDITIONS) {
+      Logger.log(
+        `Too many conditions: max ${SUGGESTION_LIMITS.MAX_CONDITIONS}`,
+      );
+      return null;
+    }
+
+    const conditions: string[] = [];
+    for (const cond of suggestion.conditions) {
+      const condStr = String(cond).trim();
+      if (
+        condStr.length === 0 ||
+        condStr.length > SUGGESTION_LIMITS.MAX_CONDITION_LENGTH
+      ) {
+        Logger.log(
+          `Invalid condition: must be 1-${SUGGESTION_LIMITS.MAX_CONDITION_LENGTH} characters`,
+        );
+        return null;
+      }
+      conditions.push(condStr);
+    }
+
+    if (conditions.length === 0) {
+      Logger.log('Invalid suggestion: at least one condition required');
+      return null;
+    }
+
+    // Validate confidence
+    const confidence =
+      typeof suggestion.confidence === 'number'
+        ? Math.max(0, Math.min(1, suggestion.confidence))
+        : 0.5;
+
+    // Validate rename (optional)
+    let rename: string | undefined;
+    if (suggestion.rename) {
+      rename = String(suggestion.rename).trim();
+      if (rename.length > SUGGESTION_LIMITS.MAX_RENAME_LENGTH) {
+        Logger.log(
+          `Invalid rename: max ${SUGGESTION_LIMITS.MAX_RENAME_LENGTH} characters`,
+        );
+        return null;
+      }
+
+      // Check for valid placeholders in rename
+      const renamePlaceholders = rename.match(/\$[a-z]/g) || [];
+      const invalidRenamePlaceholders = renamePlaceholders.filter(
+        (p) => !ALLOWED_PLACEHOLDERS.includes(p),
+      );
+      if (invalidRenamePlaceholders.length > 0) {
+        Logger.log(
+          `Invalid placeholders in rename: ${invalidRenamePlaceholders.join(', ')}`,
+        );
+        return null;
+      }
+
+      // Rename must end with .pdf
+      if (!rename.endsWith('.pdf')) {
+        Logger.log('Invalid rename: must end with .pdf');
+        return null;
+      }
+    }
+
+    return {
+      name,
+      path,
+      conditions,
+      confidence,
+      rename,
+    };
+  };
+
+  /**
    * Interface for AI service providers.
    */
   export interface AIService {
@@ -84,6 +243,86 @@ export namespace AI {
       text: string,
       existingCategories: Query.Category[],
     ): Promise<SuggestedCategory | null>;
+  }
+
+  /**
+   * Rate limiting and deduplication state for a single run.
+   */
+  export class AIRunState {
+    private aiCallCount: number = 0;
+    private processedDocuments: Set<string> = new Set();
+
+    /**
+     * Check if we can make another AI call.
+     *
+     * @param {number} maxCalls Maximum calls allowed per run.
+     * @return {boolean} True if another call is allowed.
+     */
+    canMakeAICall(maxCalls: number): boolean {
+      return this.aiCallCount < maxCalls;
+    }
+
+    /**
+     * Increment AI call counter.
+     */
+    incrementAICallCount(): void {
+      this.aiCallCount++;
+    }
+
+    /**
+     * Get current AI call count.
+     *
+     * @return {number} Number of AI calls made.
+     */
+    getAICallCount(): number {
+      return this.aiCallCount;
+    }
+
+    /**
+     * Create a fingerprint for a document.
+     *
+     * @param {string} fileName File name.
+     * @param {string} text Document text.
+     * @return {string} Document fingerprint.
+     */
+    createDocumentFingerprint(fileName: string, text: string): string {
+      // Simple fingerprint: hash of filename + first 1000 chars of text
+      const content = fileName + text.substring(0, 1000);
+      let hash = 0;
+      for (let i = 0; i < content.length; i++) {
+        const char = content.charCodeAt(i);
+        hash = (hash << 5) - hash + char;
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      return hash.toString(36);
+    }
+
+    /**
+     * Check if document has already been processed.
+     *
+     * @param {string} fingerprint Document fingerprint.
+     * @return {boolean} True if already processed.
+     */
+    isDocumentProcessed(fingerprint: string): boolean {
+      return this.processedDocuments.has(fingerprint);
+    }
+
+    /**
+     * Mark document as processed.
+     *
+     * @param {string} fingerprint Document fingerprint.
+     */
+    markDocumentProcessed(fingerprint: string): void {
+      this.processedDocuments.add(fingerprint);
+    }
+
+    /**
+     * Reset the state for a new run.
+     */
+    reset(): void {
+      this.aiCallCount = 0;
+      this.processedDocuments.clear();
+    }
   }
 
   /**
@@ -317,23 +556,8 @@ Rules:
 
         const suggestion = JSON.parse(jsonStr);
 
-        // Validate required fields
-        if (
-          !suggestion.name ||
-          !suggestion.path ||
-          !suggestion.conditions ||
-          !Array.isArray(suggestion.conditions)
-        ) {
-          return null;
-        }
-
-        return {
-          name: suggestion.name,
-          path: suggestion.path,
-          conditions: suggestion.conditions,
-          confidence: suggestion.confidence || 0.5,
-          rename: suggestion.rename,
-        };
+        // Use validation function
+        return validateCategorySuggestion(suggestion);
       } catch (error) {
         Logger.log('Failed to parse OpenAI response: ' + error);
         return null;
@@ -484,23 +708,8 @@ Rules:
 
         const suggestion = JSON.parse(jsonStr);
 
-        // Validate required fields
-        if (
-          !suggestion.name ||
-          !suggestion.path ||
-          !suggestion.conditions ||
-          !Array.isArray(suggestion.conditions)
-        ) {
-          return null;
-        }
-
-        return {
-          name: suggestion.name,
-          path: suggestion.path,
-          conditions: suggestion.conditions,
-          confidence: suggestion.confidence || 0.5,
-          rename: suggestion.rename,
-        };
+        // Use validation function
+        return validateCategorySuggestion(suggestion);
       } catch (error) {
         Logger.log('Failed to parse Gemini response: ' + error);
         return null;
@@ -643,6 +852,7 @@ Example:
    * @param {string} fileName File name.
    * @param {Query.Category[]} categories Existing categories.
    * @param {AIConfig} config AI configuration.
+   * @param {AIRunState} runState Rate limiting and deduplication state.
    * @return {Promise<boolean>} True if AI was used and suggestion sent.
    */
   export const processUnmatchedDocument = async (
@@ -650,8 +860,29 @@ Example:
     fileName: string,
     categories: Query.Category[],
     config: AIConfig,
+    runState?: AIRunState,
   ): Promise<boolean> => {
     if (!config.enabled) {
+      return false;
+    }
+
+    const state = runState || new AIRunState();
+    const maxCalls = config.maxAICallsPerRun || 10;
+
+    // Check rate limit
+    if (!state.canMakeAICall(maxCalls)) {
+      Logger.log(
+        `AI call limit reached (${maxCalls}). Skipping ${fileName}`,
+      );
+      return false;
+    }
+
+    // Check for duplicate document
+    const fingerprint = state.createDocumentFingerprint(fileName, text);
+    if (state.isDocumentProcessed(fingerprint)) {
+      Logger.log(
+        `Document ${fileName} already processed (duplicate detected). Skipping.`,
+      );
       return false;
     }
 
@@ -666,12 +897,41 @@ Example:
     // Anonymize text before sending to AI
     const anonymizedText = anonymizeText(text, config.privacyFilters);
 
+    // Dry-run mode: log what would be sent without calling AI
+    if (config.dryRun) {
+      Logger.log(`[DRY-RUN] Would process document: ${fileName}`);
+      Logger.log(`[DRY-RUN] Privacy filters: ${JSON.stringify(config.privacyFilters || [])}`);
+      Logger.log(`[DRY-RUN] Anonymized text (first 500 chars): ${anonymizedText.substring(0, 500)}`);
+      Logger.log(`[DRY-RUN] Would send email to: ${config.notificationEmail}`);
+      Logger.log(`[DRY-RUN] AI provider: ${config.provider}`);
+      
+      // Mock suggestion for dry-run
+      const mockSuggestion: SuggestedCategory = {
+        name: 'DryRun_Category',
+        path: 'DryRun/$y/$m',
+        conditions: ['keyword1', 'keyword2'],
+        confidence: 0.9,
+        rename: 'DryRun-$y-$m-$d.pdf',
+      };
+      
+      const email = createSuggestionEmail(mockSuggestion, fileName);
+      Logger.log(`[DRY-RUN] Email subject: ${email.subject}`);
+      Logger.log(`[DRY-RUN] Email text (first 200 chars): ${email.text.substring(0, 200)}...`);
+      
+      state.markDocumentProcessed(fingerprint);
+      state.incrementAICallCount();
+      return true;
+    }
+
     // Get AI service
     const service = createAIService(config);
     if (!service) {
       Logger.log('Failed to create AI service');
       return false;
     }
+
+    // Increment call count before making the call
+    state.incrementAICallCount();
 
     // Get suggestion
     const suggestion = await service.suggestCategory(
@@ -684,8 +944,18 @@ Example:
       return false;
     }
 
+    // Validate suggestion
+    const validatedSuggestion = validateCategorySuggestion(suggestion);
+    if (!validatedSuggestion) {
+      Logger.log(`AI suggestion for ${fileName} failed validation`);
+      return false;
+    }
+
+    // Mark document as processed
+    state.markDocumentProcessed(fingerprint);
+
     // Send email with suggestion
-    sendSuggestionEmail(config, suggestion, fileName);
+    sendSuggestionEmail(config, validatedSuggestion, fileName);
     return true;
   };
 

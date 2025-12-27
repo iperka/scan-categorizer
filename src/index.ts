@@ -75,6 +75,9 @@ namespace ScanCategorizer {
     // Validate the libraries that are used in the script.
     Helpers.validateLibraries();
 
+    // Create AI run state for rate limiting and deduplication
+    const aiRunState = aiConfig?.enabled ? new AI.AIRunState() : undefined;
+
     for (const category of categories) {
       // Check if conditions are valid.
       if (category.conditions.length <= 0) {
@@ -172,6 +175,7 @@ namespace ScanCategorizer {
               file.getName(),
               categories,
               aiConfig,
+              aiRunState,
             ).catch((error: Error) => {
               Logger.log('AI categorization failed: ' + error.message);
             });
